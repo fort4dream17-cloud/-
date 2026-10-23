@@ -19,7 +19,7 @@ scripts/validate.mjs  운영 데이터 검증
 .github/workflows/    수집·GitHub Pages 배포 준비 파일
 ```
 
-기존 프로젝트에는 21종목이 아닌 10종목만 들어 있었습니다. 이를 보존했습니다. 회사명·종목코드의 최신 변경은 운영 연결 때 공급자 마스터와 대조해야 합니다. 커버리지는 `config/coverage.json` 수정 후 `dist/data/coverage.json`에도 반영합니다. 현재 GitHub 사용자 저장소/사용자 Cloudflare 계정과는 연결되어 있지 않습니다. Sites 배포와 해당 계정으로의 배포는 별개입니다.
+기존 프로젝트에는 21종목이 아닌 10종목만 들어 있었습니다. 이를 보존했습니다. 회사명·종목코드의 최신 변경은 운영 연결 때 공급자 마스터와 대조해야 합니다. 커버리지는 `config/coverage.json` 수정 후 `dist/data/coverage.json`에도 반영합니다. 이 저장소는 fort4dream17-cloud/- 입니다. Cloudflare 계정의 Git 연동은 별도 설정이 필요합니다. 기존 Sites 배포는 독립적으로 유지됩니다.
 
 ## 구현 상태
 
@@ -187,3 +187,11 @@ node scripts/validate.mjs dist/data/market.json
 - https://developers.cloudflare.com/pages/get-started/git-integration/
 
 Apache ECharts는 차트 렌더러이며 데이터 공급원이 아닙니다. 번들 라이선스는 `dist/vendor/ECHARTS-LICENSE.txt` 참조.
+
+## 이 저장소의 바로가기
+
+- KRX Secrets 등록: https://github.com/fort4dream17-cloud/-/settings/secrets/actions
+- 자동 수집 변수 설정: https://github.com/fort4dream17-cloud/-/settings/variables/actions
+- Actions: https://github.com/fort4dream17-cloud/-/actions
+
+현재 공개 저장소입니다. API 비밀키·로그인정보를 코드에 넣지 마세요. 실데이터 커밋은 누구나 읽을 수 있으므로 데이터 이용권한과 공개 범위를 먼저 확인하세요.
