@@ -1,0 +1,33 @@
+name: Deploy GitHub Pages
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['dist/**', '.github/workflows/deploy-pages.yml']
+  workflow_run:
+    workflows: ['Collect approved market data']
+    types: [completed]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: vars.FLOW_PAGES_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,54 @@
+name: Collect approved market data
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 9 * * 1-5' # 18:20 Asia/Seoul. Schedule timing can be delayed by GitHub.
+permissions:
+  contents: write
+concurrency:
+  group: flow-data-update
+  cancel-in-progress: false
+jobs:
+  collect:
+    # No live job until a user-owned repository is connected and configured.
+    if: vars.FLOW_AUTO_UPDATE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r scripts/requirements.txt
+      - name: Test calculations
+        run: |
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py'
+      - name: Collect and validate
+        id: collect
+        continue-on-error: true
+        env:
+          FLOW_DATASET_URL: ${{ secrets.FLOW_DATASET_URL }}
+          FLOW_DATASET_TOKEN: ${{ secrets.FLOW_DATASET_TOKEN }}
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
+          FLOW_PROVIDER: ${{ vars.FLOW_PROVIDER }}
+        run: python scripts/collect.py --provider "${FLOW_PROVIDER:-https}"
+      - name: Publish data and collection status
+        if: always()
+        run: |
+          git config user.name 'flow-data-bot'
+          git config user.email 'flow-data-bot@users.noreply.github.com'
+          git add dist/data/market.json dist/data/status.json
+          if [ -d logs ]; then git add logs; fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update validated market data and collection status'
+            git push
+          fi
+      - name: Preserve failure status
+        if: steps.collect.outcome == 'failure'
+        run: exit 1
