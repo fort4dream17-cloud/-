@@ -1,0 +1,11 @@
+# 2026-10-25 data and presentation corrections
+
+- Visible monetary amounts, charts, copied briefings, CSV exports and threshold inputs use KRW 1 billion (십억원). Share prices stay KRW, volumes stay shares, returns and flow ratios stay percent. Source JSON with KRW_100M is normalized at the boundary; imported KRW_1B JSON/CSV is converted once to that internal unit.
+- Removed unverified connector NPS snapshots and prior annual snapshots from the active dataset. OpenDART records require the exact issuer corporate code, an NPS reporter, valid receipt number/date, and a 0–100 reported ratio. These are stock-and-related-instrument reporting ratios including related parties, not a verified current ordinary-share stake. Receipt date is never used as a holding date. Failed lookups retain only prior official verified records.
+- Foreign ownership 20-session delta is removed from the UI and CSV. Ownership levels retain their actual source date.
+- Price histories are collected separately from investor flows: 330 KRX exchange sessions give a year of price history plus moving-average warm-up. Price and flow chart dates are labeled separately. New listings and missing prices remain null; MA20/MA60 require consecutive valid sessions. KRX prices remain explicitly unadjusted, with no dividend adjustment.
+- KRX OpenAPI latest daily quotes are attempted only if an API key is configured. Both market services must return dated, nonempty data. Otherwise the previously authorized KRX/pykrx route remains available and the API failure is explicit in price-status.json. No secret values are logged or published.
+- Four 60-session leaderboards independently rank foreign/pension net buying/selling. A selector switches among net amount, market-cap-normalized intensity, and turnover-normalized intensity. Unknown aggregates and zero flow are excluded. Sector/search filters apply, and cards can filter the whole table or open a stock.
+- Briefing uses a native details/summary control, collapsed by default. No synthetic values fill missing prices, investor flows or ownership.
+
+Validation covers unit round-trips, sign-separated ranking, official receipt eligibility, historical price/provider consistency, contiguous-session moving averages, and the existing signal/collector tests.
