@@ -52,6 +52,7 @@ jobs:
           FLOW_SECTOR_MAP_TOKEN: ${{ secrets.FLOW_SECTOR_MAP_TOKEN }}
         run: python scripts/collect-index.py
       - name: Refresh disclosed pension holdings
+        if: github.event_name != 'push'
         env:
           DART_API_KEY: ${{ secrets.DART_API_KEY || secrets.OPENDART_API_KEY || secrets.OPEN_DART_API_KEY }}
         run: python scripts/update-pension-disclosures.py
