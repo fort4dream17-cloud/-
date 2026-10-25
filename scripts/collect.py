@@ -64,14 +64,21 @@ def pykrx_dataset(start,end):
     if os.environ.get('FLOW_DATA_USE_CONFIRMED')!='true':raise ValueError('공급자 이용조건 확인 후 FLOW_DATA_USE_CONFIRMED=true로 설정하세요.')
     import requests
     old=requests.sessions.Session.request
-    auth_codes=[]
+    auth_codes=[];auth_reasons=[]
     def bounded(self,*args,**kwargs):
         kwargs.setdefault('timeout',25)
         response=old(self,*args,**kwargs)
         # Inspect only a short provider error code, never publish response bodies.
         if '/MDCCOMS001D1.cmd' in str(response.url):
             try:
-                code=response.json().get('_error_code','')
+                payload=response.json()
+                code=payload.get('_error_code','')
+                message=str(payload.get('_error_message','')).lower()
+                if any(k in message for k in ['비밀번호','패스워드','password']):auth_reasons.append('KRX가 비밀번호 관련 오류를 반환했습니다. Secrets의 KRX_PW와 직접 로그인에 사용한 비밀번호 비교 필요')
+                elif any(k in message for k in ['아이디','회원정보','등록되지','존재하지']):auth_reasons.append('KRX가 아이디 또는 회원정보 관련 오류를 반환했습니다. SNS 계정이 아닌 KRX 직접 로그인 ID 확인 필요')
+                elif any(k in message for k in ['차단','접근','ip','허용']):auth_reasons.append('KRX가 접근 제한 관련 오류를 반환했습니다')
+                elif any(k in message for k in ['잠금','횟수','초과']):auth_reasons.append('KRX가 계정 잠금 또는 시도 횟수 관련 오류를 반환했습니다')
+                elif any(k in message for k in ['인증','동의','휴면']):auth_reasons.append('KRX가 계정 인증 또는 이용 동의 관련 오류를 반환했습니다')
                 if isinstance(code,str) and len(code)<=12 and code.isalnum():auth_codes.append(code)
             except (ValueError,AttributeError):pass
         return response
@@ -83,7 +90,11 @@ def pykrx_dataset(start,end):
     if webio._session is None or not webio._session.is_authenticated:
         code=auth_codes[-1] if auth_codes else 'UNKNOWN'
         if code=='CD010':reason='KRX 사이트에서 비밀번호 변경 필요'
+        elif auth_reasons:reason=auth_reasons[-1]
         else:reason='KRX 사이트 직접 로그인, 계정 상태 및 실행 환경 접근 허용 여부 확인 필요'
+        for key in ['KRX_ID','KRX_PW']:
+            value=os.environ.get(key,'')
+            if value!=value.strip():reason+='; '+key+' 앞뒤 공백 또는 줄바꿈 발견'
         raise ValueError('KRX 인증 실패 ['+code+']: '+reason+'. 데이터 조회를 중단했습니다.')
     def call(fn,*args,**kwargs):
         result=fn(*args,**kwargs);time.sleep(1)
