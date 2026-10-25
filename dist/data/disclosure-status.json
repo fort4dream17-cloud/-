@@ -1,1 +1,1 @@
-{"status": "key_not_configured", "checked_at": "2026-10-25T16:37:54.258595+09:00", "message": "현재 연결된 공시 스냅샷 유지. 정기 OpenDART 갱신에는 DART_API_KEY가 필요합니다."}
+{"status": "success", "checked_at": "2026-10-25T17:22:31.639610+09:00", "matched_reports": 216, "failed_codes": [], "no_report_count": 136, "removed_unverified": 0, "source": "OpenDART majorstock"}
