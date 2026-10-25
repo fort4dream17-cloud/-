@@ -1,1 +1,1 @@
-{"status": "failed", "last_attempt_at": "2026-10-25T14:38:01.505760+09:00", "last_success_at": null, "as_of": null, "message": "KRX 인증 실패 [CD006]: KRX 사이트 직접 로그인, 계정 상태 및 실행 환경 접근 허용 여부 확인 필요. 데이터 조회를 중단했습니다."}
+{"status": "failed", "last_attempt_at": "2026-10-25T14:41:56.165393+09:00", "last_success_at": null, "as_of": null, "message": "KRX 인증 실패 [CD006]: KRX가 비밀번호 관련 오류를 반환했습니다. Secrets의 KRX_PW와 직접 로그인에 사용한 비밀번호 비교 필요. 데이터 조회를 중단했습니다."}
