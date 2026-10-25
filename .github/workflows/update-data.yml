@@ -22,6 +22,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -53,7 +56,8 @@ jobs:
           if [ -d logs ]; then git add logs; fi
           if ! git diff --cached --quiet; then
             git commit -m 'Update validated market data and collection status'
-            git push
+            git pull --rebase origin main
+            git push origin HEAD:main
           fi
       - name: Preserve failure status
         if: steps.collect.outcome == 'failure'
