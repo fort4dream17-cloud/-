@@ -17,3 +17,5 @@ Current ETF/event feeds remain unconnected and are labeled unconfirmed. Confirme
 Sources: https://regulation.krx.co.kr/contents/RGL/03/03060106/RGL03060106.jsp ; https://indices.krx.co.kr/ ; https://github.com/sharebook-kr/pykrx
 
 On collector-code pushes the workflow retains verified NPS disclosures; scheduled and manual runs continue to refresh OpenDART. This avoids unnecessary disclosure scans during a flow-only repair.
+
+For a day where KRX turnover and volume both explicitly equal zero, the cumulative chart carries its prior level across an absent investor-detail row. The raw missing value is still missing, and a gap on any trading day remains a gap. This prevents suspended-trading periods from permanently hiding the remainder of the curve.

@@ -43,3 +43,5 @@ test('alphanumeric six-character listings and reported period totals remain dist
 test('an unrelated verified block trade does not establish passive flow',()=>{let a=rows();a.at(-1).volume=5000;a.at(-1).events=[{type:'block_trade',verified:true,source_url:'https://example.com/official-event'}];assert.ok(!analyze(a).signals.includes('F'));a.at(-1).events[0].passive_link_verified=true;assert.ok(analyze(a).signals.includes('F'))});
 
 test('explicit daily zero flows keep the cumulative curve continuous',()=>{let a=rows(6);a.forEach((r,i)=>r.trust=[0,0,2,0,-1,0][i]);assert.deepEqual(cumulative(a,'trust'),[0,0,2,2,1,1]);a[3].trust=null;assert.deepEqual(cumulative(a,'trust'),[0,0,2,null,null,null])});
+
+test('cumulative flow is carried only on confirmed zero-turnover zero-volume days',()=>{let a=rows(5);a.forEach(r=>r.trust=2);a[2].trust=null;a[2].turnover=0;a[2].volume=0;assert.deepEqual(cumulative(a,'trust'),[0,2,2,4,6]);a[2].volume=1;assert.deepEqual(cumulative(a,'trust'),[0,2,null,null,null])});
