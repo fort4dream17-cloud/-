@@ -10,8 +10,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   collect:
-    # No live job until a user-owned repository is connected and configured.
-    if: vars.FLOW_AUTO_UPDATE == 'true'
+    # Manual runs are explicit; scheduled runs require automatic updates enabled.
+    if: github.event_name == 'workflow_dispatch' || vars.FLOW_AUTO_UPDATE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
