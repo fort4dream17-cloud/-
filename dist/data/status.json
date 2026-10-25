@@ -1,1 +1,1 @@
-{"status": "failed", "last_attempt_at": "2026-10-25T14:32:38.937602+09:00", "last_success_at": null, "as_of": null, "message": "수집 연결/인증/공급자 오류 (KeyError)"}
+{"status": "failed", "last_attempt_at": "2026-10-25T14:38:01.505760+09:00", "last_success_at": null, "as_of": null, "message": "KRX 인증 실패 [CD006]: KRX 사이트 직접 로그인, 계정 상태 및 실행 환경 접근 허용 여부 확인 필요. 데이터 조회를 중단했습니다."}
