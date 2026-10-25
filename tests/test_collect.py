@@ -37,4 +37,20 @@ class CollectionDateTest(unittest.TestCase):
         self.assertEqual(m.collection_end(current,'20261023'),'20261023')
         for end in ['20261026','20261027']:
             with self.assertRaises(ValueError):m.collection_end(current,end)
+class AuthenticationTest(unittest.TestCase):
+    def test_failed_login_stops_before_any_market_query(self):
+        import types,os
+        from unittest.mock import patch,Mock
+        spec=importlib.util.spec_from_file_location('collector_auth',ROOT/'scripts/collect.py')
+        m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+        session=type('Session',(),{'request':lambda *a,**k:None})
+        stock=Mock()
+        modules={'requests':types.SimpleNamespace(sessions=types.SimpleNamespace(Session=session)),
+                 'pykrx':types.SimpleNamespace(stock=stock),
+                 'pykrx.website':types.ModuleType('pykrx.website'),
+                 'pykrx.website.comm':types.SimpleNamespace(webio=types.SimpleNamespace(_session=None))}
+        with patch.dict(os.environ,{'KRX_ID':'UNIT_TEST_ONLY','KRX_PW':'UNIT_TEST_ONLY','FLOW_DATA_USE_CONFIRMED':'true'}),patch.dict(sys.modules,modules):
+            with self.assertRaisesRegex(ValueError,'KRX 인증 실패'):
+                m.pykrx_dataset('20251001','20251022')
+        stock.get_index_ohlcv_by_date.assert_not_called()
 if __name__=='__main__':unittest.main()
