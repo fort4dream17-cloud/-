@@ -1,5 +1,11 @@
 name: Collect approved market data
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/collect.py'
+      - 'tests/test_collect.py'
+      - '.github/workflows/update-data.yml'
   workflow_dispatch:
   schedule:
     - cron: '20 9 * * 1-5' # 18:20 Asia/Seoul. Schedule timing can be delayed by GitHub.
@@ -10,8 +16,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   collect:
-    # Manual runs are explicit; scheduled runs require automatic updates enabled.
-    if: github.event_name == 'workflow_dispatch' || vars.FLOW_AUTO_UPDATE == 'true'
+    # Validate collector/config fixes immediately; scheduled runs remain opt-in.
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || vars.FLOW_AUTO_UPDATE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
