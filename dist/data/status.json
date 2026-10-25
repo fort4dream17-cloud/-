@@ -1,1 +1,1 @@
-{"status": "failed", "last_attempt_at": "2026-10-23T15:24:25.069629+09:00", "last_success_at": null, "as_of": null, "message": "KRX_ID/KRX_PW가 없어 세부 투자자 수급 수집을 실행하지 않았습니다."}
+{"status": "failed", "last_attempt_at": "2026-10-25T14:27:24.873087+09:00", "last_success_at": null, "as_of": null, "message": "당일 자동 수집은 KST 18시 이후에만 실행합니다. 과거일은 --end로 지정하세요."}
