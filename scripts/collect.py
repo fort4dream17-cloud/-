@@ -4,7 +4,7 @@ import argparse, contextlib, csv, io, json, math, os, pathlib, subprocess, sys, 
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-ACTORS={'foreign':'외국인','pension':'연기금','trust':'투신','private':'사모','financial':'금융투자','insurance':'보험','bank':'은행','other_institution':'기타금융'}
+ACTORS={'foreign':'외국인','pension':'연기금','trust':'투신','private':'사모','financial':'금융투자','insurance':'보험','bank':'은행','other_institution':'기타금융','personal':'개인','institution':'기관합계','corporation':'기타법인','other_foreign':'기타외국인','government':'국가'}
 def now(): return datetime.now(ZoneInfo('Asia/Seoul'))
 def collection_end(current, explicit=None):
     # This is a query boundary, not an exchange holiday calendar.
@@ -59,7 +59,7 @@ def remote_dataset():
         payload=r.read(30*1024*1024+1)
     if len(payload)>30*1024*1024:raise ValueError('JSON이 30MB를 초과했습니다.')
     return json.loads(payload)
-def pykrx_dataset(start,end):
+def authenticated_stock():
     if not os.environ.get('KRX_ID') or not os.environ.get('KRX_PW'):raise ValueError('KRX_ID/KRX_PW가 없어 세부 투자자 수급 수집을 실행하지 않았습니다.')
     if os.environ.get('FLOW_DATA_USE_CONFIRMED')!='true':raise ValueError('공급자 이용조건 확인 후 FLOW_DATA_USE_CONFIRMED=true로 설정하세요.')
     import requests
@@ -96,6 +96,10 @@ def pykrx_dataset(start,end):
             value=os.environ.get(key,'')
             if value!=value.strip():reason+='; '+key+' 앞뒤 공백 또는 줄바꿈 발견'
         raise ValueError('KRX 인증 실패 ['+code+']: '+reason+'. 데이터 조회를 중단했습니다.')
+    return stock
+
+def pykrx_dataset(start,end):
+    stock=authenticated_stock()
     def call(fn,*args,**kwargs):
         result=fn(*args,**kwargs);time.sleep(1)
         if result is None or result.empty:raise ValueError('공급자 응답이 비어 있습니다. 인증/호출제한/제공시각을 확인하세요.')
@@ -110,7 +114,7 @@ def pykrx_dataset(start,end):
         raw=dated(call(stock.get_market_ohlcv_by_date,start,end,code,adjusted=False))
         flows=dated(call(stock.get_market_trading_value_by_date,start,end,code,detail=True))
         caps=dated(call(stock.get_market_cap_by_date,start,end,code))
-        if any(k not in flows.columns for k in ACTORS.values()):raise ValueError(code+' 세부 투자자별 열 미제공. 기관합계로 대체하지 않습니다.')
+        if any(ACTORS[k] not in flows.columns for k in ['foreign','pension','trust','private','financial','insurance','bank','other_institution']):raise ValueError(code+' 세부 투자자별 열 미제공. 기관합계로 대체하지 않습니다.')
         try:qty=dated(call(stock.get_market_trading_volume_by_date,start,end,code,detail=True))
         except Exception:qty=None;notes.append(code+' 투자자별 수량 수집 실패 — null')
         try:own=dated(call(stock.get_exhaustion_rates_of_foreign_investment_by_date,start,end,code))
@@ -125,8 +129,9 @@ def pykrx_dataset(start,end):
                 ownership=float(own.loc[d,'보유수량'])/float(own.loc[d,'상장주식수'])*100
             r={**symbol,'date':d,'close':num(raw.loc[d,'종가']),'adjusted_close':num(adj.loc[d,'종가']),'volume':num(raw.loc[d,'거래량']),'turnover':num(caps.loc[d,'거래대금'])/1e8,'marketcap':num(caps.loc[d,'시가총액'])/1e8,'benchmark':num(bench.loc[d,'종가']),'sector_benchmark':None,'foreign_ownership':ownership,'foreign_ownership_date':d if ownership is not None else None,'available_at':now().isoformat()}
             for key,col in ACTORS.items():
-                r[key]=num(flows.loc[d,col])/1e8
+                r[key]=num(flows.loc[d,col])/1e8 if col in flows.columns and num(flows.loc[d,col]) is not None else None
                 r[key+'_qty']=num(qty.loc[d,col]) if qty is not None and d in qty.index and col in qty.columns else None
+            if r['institution'] is None:r['institution']=sum(r[k] for k in ['financial','insurance','trust','private','bank','pension','other_institution'])
             rows.append(r)
     return {'schema_version':2,'meta':{'data_kind':'real','source':'pykrx 1.2.9 / KRX 수급·비수정 종가·시총 / Naver 수정주가','unit':'KRW_100M','benchmark_name':'KOSPI (1001)','price_basis':'adjusted','adjustment_as_of':str(bench.index[-1]),'dividend_adjusted':None,'fetched_at':now().isoformat(),'as_of':str(bench.index[-1]),'status':'unknown','trading_dates':list(bench.index),'foreign_ownership_basis':'공급자 조회일 장개시 기준; 전일 확정치 기반, 주가 기준시각과 다름','notes':notes+['수정주가의 배당 반영 여부는 확인되지 않았습니다.','잠정/확정 여부는 공급자 메타 미제공으로 미확인. 백테스트용 시점보존 데이터가 아닙니다.']},'rows':rows}
 def run(args):

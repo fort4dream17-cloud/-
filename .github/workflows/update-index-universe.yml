@@ -1,0 +1,70 @@
+name: Update index universe and flow
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/collect-index.py'
+      - 'config/index-universe.json'
+      - 'config/sector-lookup.json'
+      - '.github/workflows/update-index-universe.yml'
+  schedule:
+    - cron: '35 9 * * 1-5'
+permissions:
+  contents: write
+concurrency:
+  group: flow-data-update
+  cancel-in-progress: false
+jobs:
+  index-flow:
+    if: github.event_name != 'schedule' || vars.FLOW_AUTO_UPDATE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache@v4
+        with:
+          path: .cache/index-flow-v1
+          key: index-flow-v1-${{ github.run_id }}
+          restore-keys: index-flow-v1-
+      - run: pip install -r scripts/requirements.txt
+      - run: npm test
+      - name: Collect official constituents and market-wide flow
+        id: collect
+        continue-on-error: true
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
+          FLOW_SECTOR_MAP_URL: ${{ vars.FLOW_SECTOR_MAP_URL }}
+          FLOW_SECTOR_MAP_TOKEN: ${{ secrets.FLOW_SECTOR_MAP_TOKEN }}
+        run: python scripts/collect-index.py
+      - name: Refresh disclosed pension holdings
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: python scripts/update-pension-disclosures.py
+      - name: Publish verified index data and status
+        if: always()
+        run: |
+          git config user.name 'flow-data-bot'
+          git config user.email 'flow-data-bot@users.noreply.github.com'
+          git add dist/data/index-*.json dist/data/pension-holdings.json
+          if [ -f dist/data/disclosure-status.json ]; then git add dist/data/disclosure-status.json; fi
+          if [ -f config/index-membership-history.json ]; then git add config/index-membership-history.json; fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update index universe, verified flows and disclosure status'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - name: Preserve collection failure
+        if: steps.collect.outcome == 'failure'
+        run: exit 1

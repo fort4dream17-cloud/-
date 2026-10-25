@@ -35,3 +35,6 @@ test('calendar month arithmetic clamps leap days and keeps insufficient history 
  const a=rows(65);a.forEach(r=>r.sector='반도체');assert.equal(validateDataset(dataset(a)).groups.length,1);
  a[0].sector='';assert.throws(()=>validateDataset(dataset(a)));
 });
+
+test('institution subtotal uses seven institutions and excludes corporations and foreign',()=>{let a=rows(26);for(let r of a){delete r.institution;r.corporation=100;r.other_foreign=200;}const d=validateDataset(dataset(a));assert.equal(d.rows.at(-1).institution,7);assert.equal(d.rows.at(-1).government,1);});
+test('alphanumeric six-character listings and reported period totals remain distinct from daily history',()=>{let a=rows(26);a.forEach(r=>r.code='0126Z0');validateDataset(dataset(a));let report={as_of:a.at(-1).date,actors:{pension:{60:{amount:120,cap:1.2,turnover:2}}}};assert.equal(analyze(a,{},'benchmark',report).actors.pension[60].amount,120);assert.equal(analyze(a,{},'benchmark',{...report,as_of:'2020-01-01'}).actors.pension[60].amount,null);assert.equal(cumulative(a,'pension').at(-1),25);});
