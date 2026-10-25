@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'scripts/collect-index.py'
+      - 'scripts/collect-price-history.py'
+      - 'scripts/update-pension-disclosures.py'
       - 'config/index-universe.json'
       - 'config/sector-lookup.json'
       - '.github/workflows/update-index-universe.yml'
@@ -38,6 +40,7 @@ jobs:
           restore-keys: index-flow-v1-
       - run: pip install -r scripts/requirements.txt
       - run: npm test
+      - run: python -m unittest discover -s tests -p "test_*.py"
       - name: Collect official constituents and market-wide flow
         id: collect
         continue-on-error: true
@@ -50,14 +53,24 @@ jobs:
         run: python scripts/collect-index.py
       - name: Refresh disclosed pension holdings
         env:
-          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY || secrets.OPENDART_API_KEY || secrets.OPEN_DART_API_KEY }}
         run: python scripts/update-pension-disclosures.py
+      - name: Backfill year of prices and MA60 warmup
+        id: prices
+        continue-on-error: true
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          KRX_API_KEY: ${{ secrets.KRX_API_KEY || secrets.KRX_OPEN_API_KEY || secrets.KRX_AUTH_KEY }}
+          FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
+        run: python scripts/collect-price-history.py
       - name: Publish verified index data and status
         if: always()
         run: |
           git config user.name 'flow-data-bot'
           git config user.email 'flow-data-bot@users.noreply.github.com'
           git add dist/data/index-*.json dist/data/pension-holdings.json
+          if [ -f dist/data/price-status.json ]; then git add dist/data/price-status.json; fi
           if [ -f dist/data/disclosure-status.json ]; then git add dist/data/disclosure-status.json; fi
           if [ -f config/index-membership-history.json ]; then git add config/index-membership-history.json; fi
           if ! git diff --cached --quiet; then
@@ -66,5 +79,5 @@ jobs:
             git push origin HEAD:main
           fi
       - name: Preserve collection failure
-        if: steps.collect.outcome == 'failure'
+        if: steps.collect.outcome == 'failure' || steps.prices.outcome == 'failure'
         run: exit 1
