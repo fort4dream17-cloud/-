@@ -27,4 +27,14 @@ class PipelineTest(unittest.TestCase):
             env={k:v for k,v in os.environ.items() if k not in ('KRX_ID','KRX_PW')}
             r=subprocess.run([sys.executable,str(ROOT/'scripts/collect.py'),'--provider','pykrx','--end','20251022','--output',d+'/market.json','--log-dir',d+'/logs'],capture_output=True,env=env)
             self.assertNotEqual(r.returncode,0);self.assertIn('KRX_ID',r.stderr.decode());self.assertFalse(pathlib.Path(d+'/market.json').exists())
+class CollectionDateTest(unittest.TestCase):
+    def test_safe_query_boundaries(self):
+        spec=importlib.util.spec_from_file_location('collector',ROOT/'scripts/collect.py')
+        m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+        for stamp,expected in [('2026-10-25T14:00:00+09:00','20261023'),('2026-10-26T14:00:00+09:00','20261023'),('2026-10-26T18:20:00+09:00','20261026'),('2026-10-27T09:00:00+09:00','20261026')]:
+            self.assertEqual(m.collection_end(datetime.datetime.fromisoformat(stamp)),expected)
+        current=datetime.datetime.fromisoformat('2026-10-26T14:00:00+09:00')
+        self.assertEqual(m.collection_end(current,'20261023'),'20261023')
+        for end in ['20261026','20261027']:
+            with self.assertRaises(ValueError):m.collection_end(current,end)
 if __name__=='__main__':unittest.main()
