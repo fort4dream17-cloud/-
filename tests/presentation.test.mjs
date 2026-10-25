@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {billions,longFlowRanking,verifiedDisclosure,priceHistoryRows} from '../dist/presentation.js';
+import {billions,longFlowRanking,flowRegime,verifiedDisclosure,priceHistoryRows} from '../dist/presentation.js';
 import {movingAverage} from '../dist/engine.js';
 test('display money scales once and missing values remain missing',()=>{
  assert.equal(billions(1000),100);assert.equal(billions(-12.5),-1.25);assert.equal(billions(null),null);
@@ -28,3 +28,5 @@ test('moving average needs valid contiguous sessions and uses warm-up observatio
  let rows=Array.from({length:80},(_,i)=>({close:i+1}));assert.equal(movingAverage(rows,60)[59],30.5);assert.equal(movingAverage(rows,60).at(-1),50.5);
  rows[70].close=null;assert.equal(movingAverage(rows,60).at(-1),null);
 });
+
+test('long and short flow regimes do not claim an unobserved turning date',()=>{assert.equal(flowRegime({60:{amount:10},5:{amount:-1}}),'누적 매수 속 단기 매도');assert.equal(flowRegime({60:{amount:-10},5:{amount:1}}),'누적 매도 속 단기 매수');assert.equal(flowRegime({60:{amount:null},5:{amount:1}}),'기간 비교 미확인')});

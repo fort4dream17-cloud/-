@@ -1,6 +1,7 @@
 import {finite,price} from './engine.js';
 // Legacy source JSON remains KRW_100M; every displayed/exported money value is KRW_1B.
 export const billions=value=>finite(value)?value/10:null;
+export function flowRegime(actor){let long=actor?.[60]?.amount,short=actor?.[5]?.amount;if(!finite(long)||!finite(short))return '기간 비교 미확인';if(long>0&&short>0)return '장·단기 순매수';if(long>0&&short<0)return '누적 매수 속 단기 매도';if(long<0&&short>0)return '누적 매도 속 단기 매수';if(long<0&&short<0)return '장·단기 순매도';return '최근 5일 중립';}
 export function longFlowRanking(items,actor,side,metric='cap'){
  if(!['foreign','pension'].includes(actor)||!['buy','sell'].includes(side)||!['amount','cap','turnover'].includes(metric))throw Error('60일 랭킹 기준 오류');
  return items.filter(m=>{let w=m.actors[actor][60];return finite(w.amount)&&finite(w[metric])&&(side==='buy'?w.amount>0:w.amount<0)}).sort((a,b)=>{let d=(a.actors[actor][60][metric]-b.actors[actor][60][metric])*(side==='buy'?-1:1);return d||a.last.code.localeCompare(b.last.code)});
