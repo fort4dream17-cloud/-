@@ -1,0 +1,13 @@
+import importlib.util,pathlib,sys,unittest
+ROOT=pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'scripts'))
+spec=importlib.util.spec_from_file_location('disclosures',ROOT/'scripts/update-pension-disclosures.py')
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+class DisclosureTest(unittest.TestCase):
+    def test_receipt_date_is_not_holding_date(self):
+        row={'repror':'국민연금공단','rcept_dt':'20260908','rcept_no':'20260908000302','stkrt':'8.02'}
+        record=module.report_record('329180',row)
+        self.assertIsNone(record['as_of']);self.assertEqual(record['published_at'],'2026-09-08')
+        self.assertIn('특별관계자 합산',record['ratio_basis'])
+        self.assertIsNone(module.report_record('329180',{**row,'repror':'다른 주요주주'}))
+        self.assertIsNone(module.report_record('329180',{**row,'stkrt':'101'}))

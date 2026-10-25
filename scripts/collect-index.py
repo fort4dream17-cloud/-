@@ -67,7 +67,6 @@ def collect():
         turnovers[n]=call('turnover '+str(n)+' '+last,stock.get_market_net_purchases_of_equities_by_ticker,begin,end,market='ALL',investor='전체')
         aggregates[n]={}
         for key,label in ACTORS.items():
-            if key in flows and n in [1,5,10,20]:continue
             aggregates[n][key]=call(key+' period '+str(n)+' '+last,stock.get_market_net_purchases_of_equities_by_ticker,begin,end,market='ALL',investor=label)
     rows=[];windows={};missing=[]
     for code,symbol in sorted(new.items()):
@@ -90,10 +89,7 @@ def collect():
             windows[code]['actors'][key]={}
             for n in [5,10,20,60]:
                 if n not in turnovers:continue
-                if key in flows and n<=20:
-                    vals=[frame_get(flows[key][d],code,'순매수거래대금') for d in recent[-n:]];amount=sum(vals)/1e8 if all(v is not None for v in vals) else None
-                else:
-                    val=frame_get(aggregates[n][key],code,'순매수거래대금');amount=val/1e8 if val is not None else None
+                val=frame_get(aggregates[n][key],code,'순매수거래대금');amount=val/1e8 if val is not None else None
                 turn=frame_get(turnovers[n],code,'매수거래대금');turn=turn/1e8 if turn is not None else None
                 windows[code]['actors'][key][str(n)]={'amount':amount,'cap':amount/(cap/1e8)*100 if amount is not None else None,'turnover':amount/turn*100 if amount is not None and turn and turn>0 else None}
     # Exclude a security with an internal gap; keep an explicit missing-code list.
