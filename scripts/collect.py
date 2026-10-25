@@ -6,6 +6,18 @@ from zoneinfo import ZoneInfo
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 ACTORS={'foreign':'외국인','pension':'연기금','trust':'투신','private':'사모','financial':'금융투자','insurance':'보험','bank':'은행','other_institution':'기타금융'}
 def now(): return datetime.now(ZoneInfo('Asia/Seoul'))
+def collection_end(current, explicit=None):
+    # This is a query boundary, not an exchange holiday calendar.
+    # The returned provider observations determine the actual as_of date.
+    if explicit:
+        chosen=datetime.strptime(explicit, '%Y%m%d').date()
+        if chosen>current.date() or (chosen==current.date() and current.hour<18):
+            raise ValueError('미래일 또는 장 마감 전 당일 수집은 허용하지 않습니다.')
+        return explicit
+    chosen=current.date()
+    if current.hour<18:chosen-=timedelta(days=1)
+    while chosen.weekday()>=5:chosen-=timedelta(days=1)
+    return chosen.strftime('%Y%m%d')
 def atomic(path,value):
     path=pathlib.Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.NamedTemporaryFile('w',dir=path.parent,delete=False,encoding='utf-8') as f:
@@ -98,8 +110,8 @@ def run(args):
         if args.provider=='file':d=file_dataset(args.input,args.meta,args.calendar)
         elif args.provider=='https':d=remote_dataset()
         else:
-            end=args.end or now().strftime('%Y%m%d');start=args.start or (now()-timedelta(days=400)).strftime('%Y%m%d')
-            if not args.end and (now().hour<18):raise ValueError('당일 자동 수집은 KST 18시 이후에만 실행합니다. 과거일은 --end로 지정하세요.')
+            current=now()
+            end=collection_end(current,args.end);start=args.start or (current-timedelta(days=400)).strftime('%Y%m%d')
             d=pykrx_dataset(start,end)
         if d['meta'].get('data_kind')!='real':raise ValueError('운영 수집에 예시/빈 데이터는 허용하지 않습니다.')
         if not d.get('rows'):raise ValueError('관측 데이터가 없습니다.')
