@@ -16,3 +16,7 @@ class DisclosureTest(unittest.TestCase):
         row={'corp_code':'01390344','repror':'국민연금공단','rcept_dt':'20260908','rcept_no':'20260908000302','stkrt':'8.02'}
         self.assertIsNone(module.report_record('329180',row,'00000000'))
         self.assertIsNone(module.report_record('329180',row,'01390344','2026-09-01'))
+
+    def test_stale_report_is_not_published_as_a_current_ratio(self):
+        row={'corp_code':'01390344','repror':'국민연금공단','rcept_dt':'20240908','rcept_no':'20240908000302','stkrt':'8.02'}
+        self.assertIsNone(module.report_record('329180',row,'01390344','2026-10-25'))

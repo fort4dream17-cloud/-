@@ -1,0 +1,50 @@
+name: Verify KRX OpenAPI
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/check-krx-openapi.yml']
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Check API response without exposing credentials
+        env:
+          KRX_API_KEY: ${{ secrets.KRX_API_KEY || secrets.KRX_OPEN_API_KEY || secrets.KRX_AUTH_KEY }}
+        run: |
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error,datetime,pathlib
+          key=os.environ.get('KRX_API_KEY');date=json.load(open('dist/data/index-market.json'))['meta']['as_of'];results=[]
+          for endpoint in ['stk_bydd_trd','ksq_bydd_trd']:
+              out={'service':endpoint,'configured':bool(key)}
+              if key:
+                  try:
+                      req=urllib.request.Request('https://data-dbg.krx.co.kr/svc/apis/sto/'+endpoint+'?basDd='+date.replace('-',''),headers={'AUTH_KEY':key,'Accept':'application/json'})
+                      with urllib.request.urlopen(req,timeout=25) as response:
+                          out['http_status']=response.status;data=json.load(response)
+                      rows=data.get('OutBlock_1',[]);out['row_count']=len(rows);out['response_fields']=list(data)[:15]
+                      if rows:out['sample']={k:rows[0].get(k) for k in ['BAS_DD','ISU_CD','TDD_CLSPRC','ACC_TRDVOL']}
+                  except urllib.error.HTTPError as e:out.update({'http_status':e.code,'error_type':'HTTPError'})
+                  except Exception as e:out['error_type']=type(e).__name__
+              results.append(out)
+          value={'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'as_of':date,'services':results}
+          pathlib.Path('dist/data/krx-openapi-status.json').write_text(json.dumps(value,ensure_ascii=False))
+          print(json.dumps(value,ensure_ascii=False))
+          PY
+      - name: Publish connection status
+        run: |
+          git config user.name 'flow-data-bot'
+          git config user.email 'flow-data-bot@users.noreply.github.com'
+          git add dist/data/krx-openapi-status.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record KRX API connection status without credentials'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi

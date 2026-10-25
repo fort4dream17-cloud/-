@@ -13,7 +13,8 @@ def report_record(code,row,corp_code=None,cutoff=None):
     if not re.fullmatch(r'\d{8}',date) or not re.fullmatch(r'\d{14}',receipt) or receipt[:8]!=date:return None
     try:published=datetime.strptime(date,'%Y%m%d').date().isoformat();ratio=float(str(row.get('stkrt','')).replace(',',''))
     except (ValueError,TypeError):return None
-    if published>(cutoff or now().date().isoformat()) or not 0<=ratio<=100:return None
+    ceiling=datetime.fromisoformat(cutoff).date() if cutoff else now().date()
+    if published>ceiling.isoformat() or (ceiling-datetime.fromisoformat(published).date()).days>365 or not 0<=ratio<=100:return None
     return {'code':code,'corp_code':corp_code,'holder':'국민연금','ownership_pct':ratio,'as_of':None,'published_at':published,'ratio_basis':'주식등 대량보유 보고비율 · 보고자·특별관계자 합산 · 보통주 본인 지분율과 다를 수 있음','source':'OpenDART 대량보유 상황보고 API','source_url':'https://dart.fss.or.kr/dsaf001/main.do?rcpNo='+receipt,'rcept_no':receipt,'reporter':reporter,'verification':'opendart_api','verified_at':now().isoformat(),'ratio_type':'stock_etc_reported'}
 def run():
     key=os.environ.get('DART_API_KEY');status=ROOT/'dist/data/disclosure-status.json';file=ROOT/'dist/data/pension-holdings.json'
@@ -21,7 +22,7 @@ def run():
     verified=[r for r in old.get('records',[]) if r.get('verification')=='opendart_api']
     removed=len(old.get('records',[]))-len(verified)
     # Remove incomparable annual snapshots and unverified connector records even on failure.
-    base={'holder':'국민연금','scope':'OpenDART 주식등 대량보유 보고비율; 현재 보통주 지분율 아님','records':verified,'removed_unverified':old.get('removed_unverified',0)+removed}
+    base={'holder':'국민연금','scope':'OpenDART 주식등 대량보유 보고비율; 현재 보통주 지분율 아님','records':verified,'removed_unverified':old.get('removed_unverified',0)+removed,'max_report_age_days':365}
     atomic(file,base)
     if not key:
         atomic(status,{'status':'key_not_configured','checked_at':now().isoformat(),'message':'공식 검증된 보고만 유지. DART_API_KEY 연결 필요.','removed_unverified':removed});print('OpenDART key not configured; unverified records removed.');return

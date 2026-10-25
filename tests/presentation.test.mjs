@@ -30,3 +30,7 @@ test('moving average needs valid contiguous sessions and uses warm-up observatio
 });
 
 test('long and short flow regimes do not claim an unobserved turning date',()=>{assert.equal(flowRegime({60:{amount:10},5:{amount:-1}}),'누적 매수 속 단기 매도');assert.equal(flowRegime({60:{amount:-10},5:{amount:1}}),'누적 매도 속 단기 매수');assert.equal(flowRegime({60:{amount:null},5:{amount:1}}),'기간 비교 미확인')});
+
+test('60-session rankings exclude a known short listing history',()=>{let m={last:{code:'0220W0'},flow60Sessions:41,actors:{foreign:{60:{amount:-100,cap:-10,turnover:-5}}}};assert.deepEqual(longFlowRanking([m],'foreign','sell'),[])});
+
+test('reported ratios older than a year are not shown as current data',()=>{const r={code:'329180',corp_code:'01390344',reporter:'국민연금공단',ownership_pct:8.02,published_at:'2024-09-08',rcept_no:'20240908000302',source_url:'https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20240908000302',verification:'opendart_api',ratio_type:'stock_etc_reported'};assert.equal(verifiedDisclosure([r],r.code,'2026-10-23'),null)});

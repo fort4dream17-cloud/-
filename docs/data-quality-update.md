@@ -9,3 +9,5 @@
 - Briefing uses a native details/summary control, collapsed by default. No synthetic values fill missing prices, investor flows or ownership.
 
 Validation covers unit round-trips, sign-separated ranking, official receipt eligibility, historical price/provider consistency, contiguous-session moving averages, and the existing signal/collector tests.
+
+- Active NPS ratios are limited to reports received within the last 365 days. Forty older official records are excluded instead of being shown as current stakes. The exact receipt date remains visible for every accepted ratio.
