@@ -1,1 +1,1 @@
-{"status": "failed", "last_attempt_at": "2026-10-25T14:27:24.873087+09:00", "last_success_at": null, "as_of": null, "message": "당일 자동 수집은 KST 18시 이후에만 실행합니다. 과거일은 --end로 지정하세요."}
+{"status": "failed", "last_attempt_at": "2026-10-25T14:32:38.937602+09:00", "last_success_at": null, "as_of": null, "message": "수집 연결/인증/공급자 오류 (KeyError)"}
