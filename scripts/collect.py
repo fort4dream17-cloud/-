@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Normalize approved files or explicitly authorized pykrx data. No synthetic fallback."""
-import argparse, csv, io, json, math, os, pathlib, subprocess, sys, tempfile, time, urllib.request
+import argparse, contextlib, csv, io, json, math, os, pathlib, subprocess, sys, tempfile, time, urllib.request
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 ROOT=pathlib.Path(__file__).resolve().parents[1]
@@ -64,11 +64,27 @@ def pykrx_dataset(start,end):
     if os.environ.get('FLOW_DATA_USE_CONFIRMED')!='true':raise ValueError('공급자 이용조건 확인 후 FLOW_DATA_USE_CONFIRMED=true로 설정하세요.')
     import requests
     old=requests.sessions.Session.request
+    auth_codes=[]
     def bounded(self,*args,**kwargs):
         kwargs.setdefault('timeout',25)
-        return old(self,*args,**kwargs)
+        response=old(self,*args,**kwargs)
+        # Inspect only a short provider error code, never publish response bodies.
+        if '/MDCCOMS001D1.cmd' in str(response.url):
+            try:
+                code=response.json().get('_error_code','')
+                if isinstance(code,str) and len(code)<=12 and code.isalnum():auth_codes.append(code)
+            except (ValueError,AttributeError):pass
+        return response
     requests.sessions.Session.request=bounded
-    from pykrx import stock
+    # pykrx prints the account ID at import; suppress its authentication output.
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        from pykrx import stock
+        from pykrx.website.comm import webio
+    if webio._session is None or not webio._session.is_authenticated:
+        code=auth_codes[-1] if auth_codes else 'UNKNOWN'
+        if code=='CD010':reason='KRX 사이트에서 비밀번호 변경 필요'
+        else:reason='KRX 사이트 직접 로그인, 계정 상태 및 실행 환경 접근 허용 여부 확인 필요'
+        raise ValueError('KRX 인증 실패 ['+code+']: '+reason+'. 데이터 조회를 중단했습니다.')
     def call(fn,*args,**kwargs):
         result=fn(*args,**kwargs);time.sleep(1)
         if result is None or result.empty:raise ValueError('공급자 응답이 비어 있습니다. 인증/호출제한/제공시각을 확인하세요.')
