@@ -4,3 +4,4 @@
 {"status": "failed", "last_attempt_at": "2026-10-25T14:41:56.165393+09:00", "last_success_at": null, "as_of": null, "message": "KRX 인증 실패 [CD006]: KRX가 비밀번호 관련 오류를 반환했습니다. Secrets의 KRX_PW와 직접 로그인에 사용한 비밀번호 비교 필요. 데이터 조회를 중단했습니다."}
 {"status": "delayed_or_closed", "last_attempt_at": "2026-10-25T14:49:25.051214+09:00", "last_success_at": "2026-10-25T14:49:25.051214+09:00", "as_of": "2026-10-23", "message": "최신 응답이 이전 거래일입니다. 휴장/제공 지연 여부를 확정하지 않았습니다."}
 {"status": "delayed_or_closed", "last_attempt_at": "2026-10-25T16:24:19.446412+09:00", "last_success_at": "2026-10-25T16:24:19.446412+09:00", "as_of": "2026-10-23", "message": "최신 응답이 이전 거래일입니다. 휴장/제공 지연 여부를 확정하지 않았습니다."}
+{"status": "success", "last_attempt_at": "2026-10-26T19:24:55.392354+09:00", "last_success_at": "2026-10-26T19:24:55.392354+09:00", "as_of": "2026-10-26", "message": "검증된 데이터 갱신"}
