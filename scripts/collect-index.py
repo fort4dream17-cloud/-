@@ -15,7 +15,7 @@ def collect():
     stock=authenticated_stock();cache=ROOT/'.cache/index-flow-v1';cache.mkdir(parents=True,exist_ok=True)
     def call(tag,fn,*args,**kwargs):
         ident=json.dumps([tag,args,kwargs],sort_keys=True);path=cache/(hashlib.sha256(ident.encode()).hexdigest()+'.json')
-        if path.exists():return pd.DataFrame(**json.loads(path.read_text()))
+        if tag != 'KOSPI' and path.exists():return pd.DataFrame(**json.loads(path.read_text()))
         data=fn(*args,**kwargs);time.sleep(1)
         if data is None or data.empty:raise ValueError('Empty provider response at '+tag)
         payload=json.loads(data.to_json(orient='split',date_format='iso'))

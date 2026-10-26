@@ -5,18 +5,21 @@ on:
     branches: [main]
     paths:
       - 'scripts/collect-index.py'
+      - 'scripts/check-freshness.py'
+      - 'tests/test_freshness.py'
       - 'scripts/collect-price-history.py'
       - 'scripts/update-pension-disclosures.py'
       - 'config/index-universe.json'
       - 'config/sector-lookup.json'
       - '.github/workflows/update-index-universe.yml'
   schedule:
-    - cron: '35 9 * * 1-5'
+    - cron: '35 9,10,11 * * 1-5'
 permissions:
   contents: write
 concurrency:
   group: flow-data-update
   cancel-in-progress: false
+  queue: max
 jobs:
   index-flow:
     if: github.event_name != 'schedule' || vars.FLOW_AUTO_UPDATE == 'true'
@@ -39,10 +42,18 @@ jobs:
           key: index-flow-v1-${{ github.run_id }}
           restore-keys: index-flow-v1-
       - run: pip install -r scripts/requirements.txt
+      - name: Check latest KRX session and existing data
+        id: freshness
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
+        run: python scripts/check-freshness.py --scope index --plan
       - run: npm test
       - run: python -m unittest discover -s tests -p "test_*.py"
       - name: Collect official constituents and market-wide flow
         id: collect
+        if: steps.freshness.outputs.needed != 'false'
         continue-on-error: true
         env:
           KRX_ID: ${{ secrets.KRX_ID }}
@@ -52,12 +63,15 @@ jobs:
           FLOW_SECTOR_MAP_TOKEN: ${{ secrets.FLOW_SECTOR_MAP_TOKEN }}
         run: python scripts/collect-index.py
       - name: Refresh disclosed pension holdings
-        if: github.event_name != 'push'
+        id: disclosures
+        continue-on-error: true
+        if: steps.freshness.outputs.needed != 'false' && github.event_name != 'push'
         env:
           DART_API_KEY: ${{ secrets.DART_API_KEY || secrets.OPENDART_API_KEY || secrets.OPEN_DART_API_KEY }}
         run: python scripts/update-pension-disclosures.py
       - name: Backfill year of prices and MA60 warmup
         id: prices
+        if: steps.freshness.outputs.needed != 'false'
         continue-on-error: true
         env:
           KRX_ID: ${{ secrets.KRX_ID }}
@@ -65,12 +79,18 @@ jobs:
           KRX_API_KEY: ${{ secrets.KRX_API_KEY || secrets.KRX_OPEN_API_KEY || secrets.KRX_AUTH_KEY }}
           FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
         run: python scripts/collect-price-history.py
+      - name: Verify freshness and write recovery status
+        id: verification
+        if: always()
+        continue-on-error: true
+        run: python scripts/check-freshness.py --scope index --verify
       - name: Publish verified index data and status
         if: always()
         run: |
           git config user.name 'flow-data-bot'
           git config user.email 'flow-data-bot@users.noreply.github.com'
           git add dist/data/index-*.json dist/data/pension-holdings.json
+          if [ -f dist/data/index-update-monitor.json ]; then git add dist/data/index-update-monitor.json; fi
           if [ -f dist/data/price-status.json ]; then git add dist/data/price-status.json; fi
           if [ -f dist/data/disclosure-status.json ]; then git add dist/data/disclosure-status.json; fi
           if [ -f config/index-membership-history.json ]; then git add config/index-membership-history.json; fi
@@ -80,5 +100,5 @@ jobs:
             git push origin HEAD:main
           fi
       - name: Preserve collection failure
-        if: steps.collect.outcome == 'failure' || steps.prices.outcome == 'failure'
+        if: steps.collect.outcome == 'failure' || steps.prices.outcome == 'failure' || steps.disclosures.outcome == 'failure' || steps.verification.outcome == 'failure'
         run: exit 1

@@ -14,7 +14,7 @@ def collect():
     stock=authenticated_stock();cache=ROOT/'.cache/index-flow-v1';cache.mkdir(parents=True,exist_ok=True)
     def call(tag,fn,*args,**kwargs):
         path=cache/(hashlib.sha256(json.dumps([tag,args,kwargs],sort_keys=True).encode()).hexdigest()+'.json')
-        if path.exists():return pd.DataFrame(**json.loads(path.read_text()))
+        if tag != 'price KOSPI' and path.exists():return pd.DataFrame(**json.loads(path.read_text()))
         data=fn(*args,**kwargs);time.sleep(1)
         if data is None or data.empty:raise ValueError('Empty KRX response: '+tag)
         payload=json.loads(data.to_json(orient='split',date_format='iso'));path.write_text(json.dumps(payload))
