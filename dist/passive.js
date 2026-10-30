@@ -36,6 +36,7 @@ async function mount(){
   const meta=data?.meta,universe=meta?.universe_count??capabilities?.etf_master_count;
   let text=data?`기준 ${meta.as_of} · ${meta.available_at||'갱신시각 미확보'} · ${meta.status==='partial'?'부분 수집':'수집 완료'} · 실제 매매시점 미확인`:status?.message||'ETF 원자료·배포 권한 확인 대기. 현재 추정치 N/A.';
   if(status?.status==='failed')text+=' · 최근 수집 실패, 직전 자료 기준일 확인 필요';
+  if(!meta&&capabilities)text+=` · 출처 KRX · 표본 기준일 ${capabilities.as_of||'N/A'} · 접근 확인 ${capabilities.checked_at||'N/A'}`;
   $('etfState').textContent=text;
   const sample=capabilities?.pdf_probe?.filter(r=>r.ok).length;
   $('etfKpis').innerHTML=[['국내 ETF 전체',universe??'N/A'],['PDF 전체 수집',meta?`${meta.pdf_success_count} / ${meta.universe_count}`:'N/A'],['전체 수집률',finite(meta?.pdf_success_pct)?meta.pdf_success_pct.toFixed(1)+'%':'N/A'],['표본 접근 시험',sample!==undefined?`${sample}회 성공 / ${capabilities.pdf_probe.length}회`:'N/A']].map(([k,v])=>`<div><span>${k}</span><strong>${v}</strong></div>`).join('');
