@@ -1,1 +1,1 @@
-{"status": "success", "as_of": "2026-10-29", "last_success_at": "2026-10-30T14:30:33.972916+09:00", "stock_count": 351, "missing_codes": [], "unclassified": [], "daily_flow_failed_codes": [], "daily_flow_sessions": 60}
+{"status": "failed", "last_attempt_at": "2026-10-31T01:11:59.164862+09:00", "message": "KRX 인증 실패 [CD007]: KRX가 비밀번호 관련 오류를 반환했습니다. Secrets의 KRX_PW와 직접 로그인에 사용한 비밀번호 비교 필요. 데이터 조회를 중단했습니다."}
