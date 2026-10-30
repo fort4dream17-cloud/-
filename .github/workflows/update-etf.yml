@@ -1,0 +1,52 @@
+name: Update ETF basket pressure
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['scripts/collect-etf.py', 'scripts/passive_engine.py', 'tests/test_passive.py', '.github/workflows/update-etf.yml', 'config/etf-events.json']
+  schedule:
+    - cron: '50 9,10,11 * * 1-5'
+permissions:
+  contents: write
+concurrency:
+  group: flow-data-update
+  cancel-in-progress: false
+  queue: max
+jobs:
+  etf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install -r scripts/requirements.txt
+      - run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: Collect entire authorized ETF universe
+        id: collect
+        continue-on-error: true
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
+          ETF_PUBLICATION_CONFIRMED: ${{ vars.ETF_PUBLICATION_CONFIRMED }}
+        run: python scripts/collect-etf.py
+      - name: Record backtest availability
+        if: always()
+        run: python scripts/backtest-etf.py
+      - name: Publish approved ETF data or access status
+        if: always()
+        run: |
+          git config user.name 'flow-data-bot'
+          git config user.email 'flow-data-bot@users.noreply.github.com'
+          git add dist/data/etf-*.json
+          if [ -d dist/data/etf-db ]; then git add dist/data/etf-db; fi
+          if [ -d dist/data/etf-snapshots ]; then git add dist/data/etf-snapshots; fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update authorized ETF basket data and collection coverage'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - if: steps.collect.outcome == 'failure'
+        run: exit 1
