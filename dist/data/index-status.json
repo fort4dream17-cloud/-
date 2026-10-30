@@ -1,1 +1,1 @@
-{"status": "success", "as_of": "2026-10-26", "last_success_at": "2026-10-26T19:18:28.721307+09:00", "stock_count": 351, "missing_codes": [], "unclassified": [], "daily_flow_failed_codes": [], "daily_flow_sessions": 60}
+{"status": "failed", "last_attempt_at": "2026-10-30T10:35:10.995116+09:00", "message": "KRX 인증 실패 [CD010]: KRX 사이트에서 비밀번호 변경 필요. 데이터 조회를 중단했습니다."}
