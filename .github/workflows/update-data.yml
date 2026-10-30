@@ -19,8 +19,6 @@ concurrency:
   queue: max
 jobs:
   collect:
-    # Validate collector/config fixes immediately; scheduled runs remain opt-in.
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || vars.FLOW_AUTO_UPDATE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

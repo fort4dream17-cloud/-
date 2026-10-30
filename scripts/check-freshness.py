@@ -83,7 +83,7 @@ def main():
         plan = {'expected_session': expected, 'checked_at': now.isoformat(), 'provider_error': error}
         plan_file.parent.mkdir(parents=True, exist_ok=True)
         plan_file.write_text(json.dumps(plan))
-        result = inspect(ROOT, args.scope, expected, today, os.environ.get('GITHUB_EVENT_NAME') != 'push')
+        result = inspect(ROOT, args.scope, expected, today, True)
         # A previous session on a weekday might be a holiday OR delayed upstream.
         # Retry at later slots rather than declaring the day closed or current.
         unresolved = now.weekday() < 5 and expected != today
@@ -96,7 +96,7 @@ def main():
         return 0
     plan = read(plan_file)
     expected = plan.get('expected_session')
-    result = inspect(ROOT, args.scope, expected, today, os.environ.get('GITHUB_EVENT_NAME') != 'push')
+    result = inspect(ROOT, args.scope, expected, today, True)
     unresolved = now.weekday() < 5 and expected and expected < today
     state = 'failed' if not result['ok'] else ('closed_or_provider_delayed' if unresolved else 'current')
     report = {'status': state, 'scope': args.scope, 'checked_at': now.isoformat(),
