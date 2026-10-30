@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/collect-index.py'
+      - 'scripts/collect.py'
       - 'scripts/check-freshness.py'
       - 'tests/test_freshness.py'
       - 'scripts/collect-price-history.py'
@@ -64,7 +65,7 @@ jobs:
       - name: Refresh disclosed pension holdings
         id: disclosures
         continue-on-error: true
-        if: steps.freshness.outputs.needed != 'false'
+        if: steps.freshness.outputs.disclosure_needed != 'false'
         env:
           DART_API_KEY: ${{ secrets.DART_API_KEY || secrets.OPENDART_API_KEY || secrets.OPEN_DART_API_KEY }}
         run: python scripts/update-pension-disclosures.py

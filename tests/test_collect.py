@@ -54,3 +54,14 @@ class AuthenticationTest(unittest.TestCase):
                 m.pykrx_dataset('20251001','20251022')
         stock.get_index_ohlcv_by_date.assert_not_called()
 if __name__=='__main__':unittest.main()
+
+class CredentialWhitespaceTest(unittest.TestCase):
+    def test_boundary_whitespace_is_removed_without_changing_internal_characters(self):
+        import os
+        from unittest.mock import patch
+        spec=importlib.util.spec_from_file_location('collector_whitespace',ROOT/'scripts/collect.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        with patch.dict(os.environ,{'KRX_ID':'  UNIT_TEST_ID\\r\\n'.replace('\\r','\r').replace('\\n','\n'),'KRX_PW':'  UNIT TEST ONLY\\n'.replace('\\n','\n')}):
+            module.normalize_krx_credentials()
+            self.assertEqual(os.environ['KRX_ID'],'UNIT_TEST_ID')
+            self.assertEqual(os.environ['KRX_PW'],'UNIT TEST ONLY')

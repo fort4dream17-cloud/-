@@ -92,6 +92,7 @@ def main():
         if output:
             with open(output, 'a') as f:
                 f.write('needed=' + str(needed).lower() + '\n')
+                f.write('disclosure_needed=' + str(any(r.startswith('OpenDART') for r in result['reasons'])).lower() + '\n')
         print(json.dumps({'needed': needed, **plan, **result}, ensure_ascii=False))
         return 0
     plan = read(plan_file)

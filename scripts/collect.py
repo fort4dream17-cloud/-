@@ -59,7 +59,14 @@ def remote_dataset():
         payload=r.read(30*1024*1024+1)
     if len(payload)>30*1024*1024:raise ValueError('JSON이 30MB를 초과했습니다.')
     return json.loads(payload)
+def normalize_krx_credentials():
+    # GitHub secret pastes may include boundary whitespace. Never log values.
+    for key in ('KRX_ID', 'KRX_PW'):
+        if key in os.environ:
+            os.environ[key] = os.environ[key].strip()
+
 def authenticated_stock():
+    normalize_krx_credentials()
     if not os.environ.get('KRX_ID') or not os.environ.get('KRX_PW'):raise ValueError('KRX_ID/KRX_PW가 없어 세부 투자자 수급 수집을 실행하지 않았습니다.')
     if os.environ.get('FLOW_DATA_USE_CONFIRMED')!='true':raise ValueError('공급자 이용조건 확인 후 FLOW_DATA_USE_CONFIRMED=true로 설정하세요.')
     import requests
