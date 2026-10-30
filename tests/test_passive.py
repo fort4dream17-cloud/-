@@ -94,3 +94,11 @@ class PassiveTests(unittest.TestCase):
         self.assertAlmostEqual(result[0]['excess_pct'],(106/101-1)*100)
         self.assertEqual(result[0]['max_drawdown_pct'],0)
         self.assertEqual(backtest(days,quotes,sessions,60),[])
+
+    def test_backtest_rejects_data_published_after_entry_close(self):
+        sessions=['2026-10-'+str(i).zfill(2) for i in range(1,11)]
+        day={'meta':{'as_of':sessions[0],'available_at':sessions[1]+'T15:31:00+09:00'},'stocks':[{'code':'TEST','adv_pct':4,'partial':False}]}
+        quotes={'TEST':{d:[100+i,100] for i,d in enumerate(sessions)}}
+        self.assertEqual(backtest([day],quotes,sessions,5),[])
+        day['meta']['available_at']=sessions[1]+'T15:29:00+09:00'
+        self.assertEqual(len(backtest([day],quotes,sessions,5)),1)

@@ -1,5 +1,6 @@
 """ETF basket-implied demand, never executed trades. All amounts are KRW."""
 import math
+from datetime import datetime
 
 def number(x):
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
@@ -149,11 +150,15 @@ def rolling(history, code, sessions, n):
 def backtest(history, quotes, sessions, horizon):
     """Only observed signals, next close entry; no invented historic universe."""
     output=[]
-    for day in history:
+    for day in sorted(history,key=lambda d:d['meta']['as_of']):
         at=day['meta']['as_of'];idx=sessions.index(at) if at in sessions else -1
         if idx<0 or idx+1+horizon>=len(sessions):continue
         # available_at must be known and before next-session close.
-        if not day['meta'].get('available_at') or day['meta']['available_at'][:10]>sessions[idx+1]:continue
+        try:
+            available=datetime.fromisoformat(day['meta']['available_at'].replace('Z','+00:00'))
+            entry_close=datetime.fromisoformat(sessions[idx+1]+'T15:30:00+09:00')
+            if available.tzinfo is None or available>=entry_close:continue
+        except (KeyError,ValueError,TypeError):continue
         for r in day['stocks']:
             if r.get('partial') or not number(r.get('adv_pct')) or abs(r['adv_pct'])<3:continue
             a=quotes.get(r['code'],{});entry=a.get(sessions[idx+1]);end=a.get(sessions[idx+1+horizon])
