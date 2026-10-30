@@ -1,0 +1,43 @@
+name: Verify ETF source capabilities
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['scripts/probe-etf.py', '.github/workflows/probe-etf.yml']
+permissions:
+  contents: write
+concurrency:
+  group: flow-data-update
+  cancel-in-progress: false
+  queue: max
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - run: pip install -r scripts/requirements.txt
+      - name: Probe source schemas without publishing raw data
+        id: probe
+        continue-on-error: true
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
+        run: python scripts/probe-etf.py
+      - name: Publish capability counts
+        if: always()
+        run: |
+          git config user.name 'flow-data-bot'
+          git config user.email 'flow-data-bot@users.noreply.github.com'
+          git add dist/data/etf-capabilities.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record ETF source availability and field schemas'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - if: steps.probe.outcome == 'failure'
+        run: exit 1
