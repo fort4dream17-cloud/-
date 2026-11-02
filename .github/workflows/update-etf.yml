@@ -30,7 +30,7 @@ jobs:
           KRX_ID: ${{ secrets.KRX_ID }}
           KRX_PW: ${{ secrets.KRX_PW }}
           FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
-          ETF_PUBLICATION_CONFIRMED: ${{ vars.ETF_PUBLICATION_CONFIRMED }}
+          ETF_COLLECTION_ENABLED: 'true'
         run: python scripts/collect-etf.py
       - name: Record backtest availability
         if: always()

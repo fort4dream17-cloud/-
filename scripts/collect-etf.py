@@ -45,9 +45,9 @@ def collect():
             'data_kind':'unavailable','publication_rights':'unverified','universe_count':None,
             'pdf_success_count':None,'pdf_success_pct':None,
             'message':'KRX·운용사 원자료의 본 공개 대시보드 이용·재배포 권한 확인 필요. 이용 범위가 확인된 데이터 공급원 연결 후 전체 수집 가능합니다.'}
-    if os.environ.get('ETF_PUBLICATION_CONFIRMED')!='true':
+    if os.environ.get('ETF_COLLECTION_ENABLED')!='true' and os.environ.get('ETF_PUBLICATION_CONFIRMED')!='true':
         atomic(DATA/'etf-status.json',report);print(json.dumps(report,ensure_ascii=False));return 0
-    report['publication_rights']='operator_confirmed'
+    report['collection_enabled']=True
     stock=authenticated_stock()
     from pykrx.website.krx.etx.core import ETF_전종목기본종목, 전종목시세_ETF, PDF
     from datetime import datetime
@@ -149,7 +149,7 @@ def collect():
                 if positive(close) and number(h.get('qty_per_cu')):
                     h['weight_pct']=h['qty_per_cu']*close/(f['cu_size']*f['nav'])*100
     result=build_day(current,previous,facts,events)
-    result['meta'].update({'available_at':now().isoformat(),'publication_rights':'operator_confirmed',
+    result['meta'].update({'available_at':now().isoformat(),'publication_rights':'unverified','collection_enabled':True,
        'observed_history_only':True,'pdf_failures':failed,'sector_benchmark':'unavailable',
        'licensed_supplier_feed':'not_configured','actual_execution':'unavailable'})
     # Shard the ETF database to respect Cloudflare's per-file limit.
