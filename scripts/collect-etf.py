@@ -187,5 +187,6 @@ def collect():
 if __name__=='__main__':
     try:raise SystemExit(collect())
     except Exception as exc:
-        atomic(DATA/'etf-status.json',{'status':'failed','checked_at':now().isoformat(),'message':'ETF 수집 실패: '+type(exc).__name__,'data_kind':'unavailable'})
-        print('ETF collection failed:',type(exc).__name__);raise SystemExit(1)
+        reason=str(exc) if str(exc).startswith('KRX 인증 실패 [') else type(exc).__name__
+        atomic(DATA/'etf-status.json',{'status':'failed','checked_at':now().isoformat(),'collection_enabled':True,'message':'ETF 수집 실패: '+reason,'data_kind':'unavailable'})
+        print('ETF collection failed:',reason);raise SystemExit(1)
