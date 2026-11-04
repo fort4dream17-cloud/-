@@ -65,6 +65,50 @@ def normalize_krx_credentials():
         if key in os.environ:
             os.environ[key] = os.environ[key].strip()
 
+def krx_request_guard(delegate,persist_failure):
+    """Stop pykrx's hidden refresh loop at the actual HTTP boundary.
+    A swallowed exception must not permit another login or KRX data request.
+    Never record credentials, payloads, cookies, or server response messages.
+    """
+    from urllib.parse import urlsplit
+    failure=None;login_requests=0;successful_logins=0;duplicate_pending=False
+    def guarded(session,*args,**kwargs):
+        nonlocal failure,login_requests,successful_logins,duplicate_pending
+        method=kwargs.get('method',args[0] if args else '')
+        url=kwargs.get('url',args[1] if len(args)>1 else '')
+        parsed=urlsplit(str(url));krx=parsed.hostname=='data.krx.co.kr'
+        login=krx and parsed.path.endswith('/MDCCOMS001D1.cmd') and str(method).upper()=='POST'
+        if failure and krx:
+            raise ValueError(failure+' 추가 KRX 요청은 전송하지 않았습니다.')
+        kwargs.setdefault('timeout',25)
+        if login:login_requests+=1
+        try:response=delegate(session,*args,**kwargs)
+        except Exception:
+            if not login:raise
+            failure='KRX 인증 실패 [UNKNOWN]: 로그인 응답 미확인. 중복 시도를 중단했습니다.'
+            persist_failure({'status':'blocked','provider_code':'UNKNOWN','message':failure,'automatic_retry':False,
+                             'phase':'session_refresh' if successful_logins else 'initial_login',
+                             'login_requests_in_process':login_requests,'successful_logins_in_process':successful_logins})
+            raise ValueError(failure) from None
+        if not login:return response
+        try:
+            code=response.json().get('_error_code','UNKNOWN')
+        except (ValueError,AttributeError,TypeError):code='UNKNOWN'
+        if not isinstance(code,str) or not code.isalnum() or len(code)>12:code='UNKNOWN'
+        if code=='CD001':
+            successful_logins+=1;duplicate_pending=False;return response
+        if code=='CD011' and not duplicate_pending:
+            duplicate_pending=True;return response
+        reason={'CD007':'로그인 거부. 저장된 비밀번호와 계정 잠금 상태 확인 필요',
+                'CD006':'아이디 또는 회원정보 확인 필요','CD010':'KRX 홈페이지에서 비밀번호 변경 필요',
+                'CD011':'중복 로그인 해제 실패'}.get(code,'인증 응답 확인 필요')
+        failure='KRX 인증 실패 ['+code+']: '+reason+'. 재로그인 반복을 중단했습니다.'
+        persist_failure({'status':'blocked','provider_code':code,'message':failure,'automatic_retry':False,
+                         'phase':'session_refresh' if successful_logins else 'initial_login',
+                         'login_requests_in_process':login_requests,'successful_logins_in_process':successful_logins})
+        raise ValueError(failure)
+    return guarded
+
 def authenticated_stock():
     normalize_krx_credentials()
     if not os.environ.get('KRX_ID') or not os.environ.get('KRX_PW'):raise ValueError('KRX_ID/KRX_PW가 없어 세부 투자자 수급 수집을 실행하지 않았습니다.')
@@ -75,38 +119,16 @@ def authenticated_stock():
         raise ValueError('KRX 자동 인증 중지 ['+str(auth_state.get('provider_code','UNKNOWN'))+']: 이전 인증 실패로 계정 잠금 방지를 위해 재시도를 중단했습니다. Secrets 수정 후 Verify KRX authentication once를 수동 실행하세요.')
     if os.environ.get('FLOW_DATA_USE_CONFIRMED')!='true':raise ValueError('공급자 이용조건 확인 후 FLOW_DATA_USE_CONFIRMED=true로 설정하세요.')
     import requests
-    old=requests.sessions.Session.request
-    auth_codes=[];auth_reasons=[]
-    def bounded(self,*args,**kwargs):
-        kwargs.setdefault('timeout',25)
-        response=old(self,*args,**kwargs)
-        # Inspect only a short provider error code, never publish response bodies.
-        if '/MDCCOMS001D1.cmd' in str(response.url):
-            try:
-                payload=response.json()
-                code=payload.get('_error_code','')
-                message=str(payload.get('_error_message','')).lower()
-                if any(k in message for k in ['비밀번호','패스워드','password']):auth_reasons.append('KRX가 비밀번호 관련 오류를 반환했습니다. Secrets의 KRX_PW와 직접 로그인에 사용한 비밀번호 비교 필요')
-                elif any(k in message for k in ['아이디','회원정보','등록되지','존재하지']):auth_reasons.append('KRX가 아이디 또는 회원정보 관련 오류를 반환했습니다. SNS 계정이 아닌 KRX 직접 로그인 ID 확인 필요')
-                elif any(k in message for k in ['차단','접근','ip','허용']):auth_reasons.append('KRX가 접근 제한 관련 오류를 반환했습니다')
-                elif any(k in message for k in ['잠금','횟수','초과']):auth_reasons.append('KRX가 계정 잠금 또는 시도 횟수 관련 오류를 반환했습니다')
-                elif any(k in message for k in ['인증','동의','휴면']):auth_reasons.append('KRX가 계정 인증 또는 이용 동의 관련 오류를 반환했습니다')
-                if isinstance(code,str) and len(code)<=12 and code.isalnum():auth_codes.append(code)
-            except (ValueError,AttributeError):pass
-        return response
-    requests.sessions.Session.request=bounded
+    def persist_failure(state):
+        atomic(auth_path,{**state,'checked_at':now().isoformat()})
+    requests.sessions.Session.request=krx_request_guard(requests.sessions.Session.request,persist_failure)
     # pykrx prints the account ID at import; suppress its authentication output.
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         from pykrx import stock
         from pykrx.website.comm import webio
     if webio._session is None or not webio._session.is_authenticated:
-        code=auth_codes[-1] if auth_codes else 'UNKNOWN'
-        if code=='CD010':reason='KRX 사이트에서 비밀번호 변경 필요'
-        elif auth_reasons:reason=auth_reasons[-1]
-        else:reason='KRX 사이트 직접 로그인, 계정 상태 및 실행 환경 접근 허용 여부 확인 필요'
-        for key in ['KRX_ID','KRX_PW']:
-            value=os.environ.get(key,'')
-            if value!=value.strip():reason+='; '+key+' 앞뒤 공백 또는 줄바꿈 발견'
+        code='UNKNOWN'
+        reason='KRX 사이트 직접 로그인, 계정 상태 및 실행 환경 접근 허용 여부 확인 필요'
         message='KRX 인증 실패 ['+code+']: '+reason+'. 데이터 조회를 중단했습니다.'
         atomic(auth_path,{'status':'blocked','provider_code':code,'checked_at':now().isoformat(),'message':message,'automatic_retry':False})
         raise ValueError(message)

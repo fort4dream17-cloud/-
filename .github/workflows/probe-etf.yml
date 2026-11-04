@@ -1,9 +1,6 @@
 name: Verify ETF source capabilities
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['scripts/probe-etf.py', '.github/workflows/probe-etf.yml']
 permissions:
   contents: write
 concurrency:
@@ -34,6 +31,7 @@ jobs:
           git config user.name 'flow-data-bot'
           git config user.email 'flow-data-bot@users.noreply.github.com'
           git add dist/data/etf-capabilities.json
+          if [ -f dist/data/krx-auth.json ]; then git add dist/data/krx-auth.json; fi
           if ! git diff --cached --quiet; then
             git commit -m 'Record ETF source availability and field schemas'
             git pull --rebase origin main

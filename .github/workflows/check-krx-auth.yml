@@ -1,11 +1,9 @@
 name: Verify KRX authentication once
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/check-krx-auth.yml']
 permissions:
   contents: write
+  actions: write
 concurrency:
   group: krx-auth-recovery
   cancel-in-progress: false
@@ -20,6 +18,10 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.11'}
       - run: pip install -r scripts/requirements.txt
+      - name: Drain runs that may hold old credentials before recovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/cancel-stale-krx-runs.py
       - name: Verify stored credentials once
         id: authenticate
         continue-on-error: true
