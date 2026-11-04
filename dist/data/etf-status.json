@@ -1,1 +1,1 @@
-{"status": "failed", "checked_at": "2026-11-04T02:24:31.734221+09:00", "collection_enabled": true, "message": "ETF 수집 실패: KRX 인증 실패 [CD007]: KRX가 비밀번호 관련 오류를 반환했습니다. Secrets의 KRX_PW와 직접 로그인에 사용한 비밀번호 비교 필요. 데이터 조회를 중단했습니다.", "data_kind": "unavailable"}
+{"status": "failed", "checked_at": "2026-11-04T16:36:08.806628+09:00", "collection_enabled": true, "message": "ETF 수집 실패: KRX 자동 인증 중지 [CD007]: 이전 인증 실패로 계정 잠금 방지를 위해 재시도를 중단했습니다. Secrets 수정 후 Verify KRX authentication once를 수동 실행하세요.", "data_kind": "unavailable"}
