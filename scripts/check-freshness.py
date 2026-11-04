@@ -79,7 +79,7 @@ def main():
             expected = provider_session()
             error = None
         except Exception as exc:
-            expected, error = None, type(exc).__name__
+            expected, error = None, str(exc) if str(exc).startswith('KRX ') else type(exc).__name__
         plan = {'expected_session': expected, 'checked_at': now.isoformat(), 'provider_error': error}
         plan_file.parent.mkdir(parents=True, exist_ok=True)
         plan_file.write_text(json.dumps(plan))
@@ -92,6 +92,7 @@ def main():
         if output:
             with open(output, 'a') as f:
                 f.write('needed=' + str(needed).lower() + '\n')
+                f.write('auth_ready=' + str(error is None).lower() + '\n')
                 f.write('disclosure_needed=' + str(any(r.startswith('OpenDART') for r in result['reasons'])).lower() + '\n')
         print(json.dumps({'needed': needed, **plan, **result}, ensure_ascii=False))
         return 0
@@ -121,3 +122,4 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+

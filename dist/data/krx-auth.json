@@ -1,0 +1,1 @@
+{"status":"blocked","provider_code":"CD007","checked_at":"2026-11-04T02:24:31.734221+09:00","message":"KRX 최근 예약 실행 인증 실패. 계정 잠금 방지를 위해 자동 재인증을 중지했습니다. 저장된 인증정보는 별도 작업에서 1회 확인합니다.","automatic_retry":false}

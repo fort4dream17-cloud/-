@@ -9,6 +9,9 @@ on:
       - 'tests/test_collect.py'
       - '.github/workflows/update-data.yml'
   workflow_dispatch:
+  workflow_run:
+    workflows: ['Verify KRX authentication once']
+    types: [completed]
   schedule:
     - cron: '20 9,10,11 * * 1-5' # 18:20 Asia/Seoul. Schedule timing can be delayed by GitHub.
 permissions:
@@ -19,6 +22,7 @@ concurrency:
   queue: max
 jobs:
   collect:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -46,7 +50,7 @@ jobs:
           python -m unittest discover -s tests -p 'test_*.py'
       - name: Collect and validate
         id: collect
-        if: steps.freshness.outputs.needed != 'false'
+        if: steps.freshness.outputs.needed != 'false' && steps.freshness.outputs.auth_ready != 'false'
         continue-on-error: true
         env:
           FLOW_DATASET_URL: ${{ secrets.FLOW_DATASET_URL }}
@@ -66,6 +70,7 @@ jobs:
         run: |
           git config user.name 'flow-data-bot'
           git config user.email 'flow-data-bot@users.noreply.github.com'
+          if [ -f dist/data/krx-auth.json ]; then git add dist/data/krx-auth.json; fi
           git add dist/data/market.json dist/data/status.json
           if [ -f dist/data/legacy-update-monitor.json ]; then git add dist/data/legacy-update-monitor.json; fi
           if [ -d logs ]; then git add logs; fi
@@ -77,3 +82,4 @@ jobs:
       - name: Preserve failure status
         if: steps.collect.outcome == 'failure' || steps.verification.outcome == 'failure'
         run: exit 1
+

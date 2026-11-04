@@ -68,6 +68,11 @@ def normalize_krx_credentials():
 def authenticated_stock():
     normalize_krx_credentials()
     if not os.environ.get('KRX_ID') or not os.environ.get('KRX_PW'):raise ValueError('KRX_ID/KRX_PW가 없어 세부 투자자 수급 수집을 실행하지 않았습니다.')
+    auth_path=ROOT/'dist/data/krx-auth.json'
+    try:auth_state=json.loads(auth_path.read_text())
+    except (OSError,ValueError):auth_state={}
+    if auth_state.get('status')=='blocked' and os.environ.get('KRX_AUTH_RECOVERY')!='true':
+        raise ValueError('KRX 자동 인증 중지 ['+str(auth_state.get('provider_code','UNKNOWN'))+']: 이전 인증 실패로 계정 잠금 방지를 위해 재시도를 중단했습니다. Secrets 수정 후 Verify KRX authentication once를 수동 실행하세요.')
     if os.environ.get('FLOW_DATA_USE_CONFIRMED')!='true':raise ValueError('공급자 이용조건 확인 후 FLOW_DATA_USE_CONFIRMED=true로 설정하세요.')
     import requests
     old=requests.sessions.Session.request
@@ -102,7 +107,10 @@ def authenticated_stock():
         for key in ['KRX_ID','KRX_PW']:
             value=os.environ.get(key,'')
             if value!=value.strip():reason+='; '+key+' 앞뒤 공백 또는 줄바꿈 발견'
-        raise ValueError('KRX 인증 실패 ['+code+']: '+reason+'. 데이터 조회를 중단했습니다.')
+        message='KRX 인증 실패 ['+code+']: '+reason+'. 데이터 조회를 중단했습니다.'
+        atomic(auth_path,{'status':'blocked','provider_code':code,'checked_at':now().isoformat(),'message':message,'automatic_retry':False})
+        raise ValueError(message)
+    atomic(auth_path,{'status':'verified','checked_at':now().isoformat(),'message':'KRX 인증 통과. 데이터 수집 완료 여부와 별개입니다.','automatic_retry':True})
     return stock
 
 def pykrx_dataset(start,end):
@@ -187,3 +195,4 @@ if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--provider',choices=['file','https','pykrx'],default='file');p.add_argument('--input');p.add_argument('--meta');p.add_argument('--calendar');p.add_argument('--log-dir');p.add_argument('--start');p.add_argument('--end');p.add_argument('--output',default=str(ROOT/'dist/data/market.json'));a=p.parse_args()
     if a.provider=='file' and not a.input:p.error('--input required for file provider')
     sys.exit(run(a))
+
