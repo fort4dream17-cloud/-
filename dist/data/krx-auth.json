@@ -1,1 +1,1 @@
-{"status": "blocked", "provider_code": "CD007", "checked_at": "2026-11-04T16:35:44.873156+09:00", "message": "KRX 인증 실패 [CD007]: KRX가 비밀번호 관련 오류를 반환했습니다. Secrets의 KRX_PW와 직접 로그인에 사용한 비밀번호 비교 필요. 데이터 조회를 중단했습니다.", "automatic_retry": false}
+{"status": "disabled", "web_login": false, "checked_at": "2026-11-08T16:35:39.818469+09:00", "message": "KRX 웹 로그인 영구 중지. OpenAPI AUTH_KEY만 사용합니다.", "automatic_retry": false}
