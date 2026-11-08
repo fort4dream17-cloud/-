@@ -12,7 +12,7 @@ class AuthGateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d,patch.object(m,'ROOT',pathlib.Path(d)),patch.dict(os.environ,{'KRX_AUTH_RECOVERY':'','KRX_ID':'TEST_ONLY','KRX_PW':'TEST_ONLY'}):
             p=pathlib.Path(d)/'dist/data/krx-auth.json';p.parent.mkdir(parents=True)
             p.write_text(json.dumps({'status':'blocked','provider_code':'CD007'}))
-            with self.assertRaisesRegex(ValueError,'KRX 자동 인증 중지'):
+            with self.assertRaisesRegex(ValueError,'영구 비활성화'):
                 m.authenticated_stock()
 
     def test_one_successful_recovery_clears_gate_and_contains_no_credentials(self):
@@ -22,8 +22,9 @@ class AuthGateTest(unittest.TestCase):
                  'pykrx.website.comm':types.SimpleNamespace(webio=types.SimpleNamespace(_session=types.SimpleNamespace(is_authenticated=True)))}
         with tempfile.TemporaryDirectory() as d,patch.object(m,'ROOT',pathlib.Path(d)),patch.dict(os.environ,{'KRX_AUTH_RECOVERY':'true','KRX_ID':'TEST_ID_NEVER_PUBLISH','KRX_PW':'TEST_PW_NEVER_PUBLISH','FLOW_DATA_USE_CONFIRMED':'true'}),patch.dict(sys.modules,modules):
             p=pathlib.Path(d)/'dist/data/krx-auth.json';p.parent.mkdir(parents=True);p.write_text('{"status":"blocked"}')
-            self.assertIs(m.authenticated_stock(),stock)
-            self.assertEqual(json.loads(p.read_text())['status'],'verified')
+            with self.assertRaisesRegex(ValueError,'영구 비활성화'):m.authenticated_stock()
+            stock.assert_not_called()
+            self.assertEqual(json.loads(p.read_text())['status'],'blocked')
             self.assertNotIn('NEVER_PUBLISH',p.read_text())
 
     def test_hidden_refresh_failure_sends_no_more_requests_even_if_caller_retries(self):
@@ -84,3 +85,4 @@ class AuthGateTest(unittest.TestCase):
         login='https://data.krx.co.kr/contents/MDC/COMS/client/MDCCOMS001D1.cmd'
         guarded(None,'POST',login);guarded(None,'POST',login)
         self.assertEqual(records,[])
+

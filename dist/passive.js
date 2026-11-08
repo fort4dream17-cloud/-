@@ -14,7 +14,7 @@ export function historyWindow(days,code,n){return days.slice(-n).map(d=>({date:d
 
 async function mount(){
  const root=document.getElementById('passivePanel');if(!root)return;
- let data=null,status=null,capabilities=null,history={days:[]},selected=null,period=60,chart=null,localFunds=null,shards=new Map(),sequence=0,backtest=null;
+ let apiEtf=null,data=null,status=null,capabilities=null,history={days:[]},selected=null,period=60,chart=null,localFunds=null,shards=new Map(),sequence=0,backtest=null;
  const $=id=>root.querySelector('#'+id),color=v=>finite(v)?v>0?'pos':v<0?'neg':'':'';
  root.innerHTML=`<div class="section-head"><div><h2>기계적 수급 (ETF/패시브)</h2><p class="muted">국내 상장 ETF의 현물 바스켓에서 추정한 압력 · 실체결액 아님 · 금액 억원</p></div><button id="etfExport">현재 랭킹 CSV ↓</button></div>
  <div id="etfState" class="notice" role="status">ETF 데이터 확인 중</div>
@@ -27,22 +27,24 @@ async function mount(){
  <h3>편입 ETF 전체 목록 · 현재 바스켓 및 전일 편출 포함</h3><div class="table-scroll" id="etfFunds">데이터 미확보 · N/A</div></div>
  <details class="etf-method"><summary>산식 · 데이터 범위 · 이용 조건</summary><ul><li>설정효과 = (당일 좌수 − 보정 전일 좌수) × 당일 CU당 현물수량 / 당일 CU × 종목 종가.</li><li>리밸런싱 = 보정 전일 좌수 × (당일 좌당 구성수량 − 보정 전일 좌당 구성수량) × 종가. 가격 상승으로 인한 비중 변화는 매수로 계산하지 않습니다.</li><li>현물 수량 대신 검증된 편입비중을 사용할 때는 ‘근사’로 표시합니다. 계산이 가능한 효과만 부분 집계하며, 빠진 효과는 N/A입니다.</li><li>예상 매수·매도 합계는 ETF별·효과별 양·음 압력의 합입니다. 같은 ETF 안에서 상쇄된 설정·환매의 실제 총액은 미확보입니다.</li><li>상장좌수 변화와 실제 설정·환매 요청일·주식 체결일에는 시차가 있습니다. PDF는 설정 바스켓이며 실제 펀드 보유내역과 다를 수 있습니다. 액티브의 구성 변화는 기계적 리밸런싱으로 단정하지 않습니다.</li><li>금융투자·외국인·기관 수급은 방향 교차검증용입니다. 금융투자 전체를 ETF 매매로 간주하지 않으며 기존 수급에서 추정 ETF 압력을 차감하지 않습니다.</li><li>전체 ETF를 조사하되 국내 현물 종목 직접 편입분만 계산합니다. 합성 익스포저·선물·해외주식·재간접 ETF 룩스루와 업종지수 상대수익률은 별도 자료가 없으면 N/A입니다.</li><li>분할·병합·합병·CU 변경이 확인되지 않거나 PDF·시세 날짜가 다르면 해당 계산을 보류합니다. 장중 당일 설정·환매를 확인하지 못하면 당일 값을 만들지 않습니다.</li><li>KRX 공개 열람과 재배포 권한은 다릅니다. 본 공개 화면의 원자료 이용 범위를 확인한 후 전체 수집을 활성화합니다. <a href="https://openapi.krx.co.kr/contents/OPP/DATA/OPPDATA003.jsp" target="_blank" rel="noopener noreferrer">KRX 데이터 이용 안내</a></li></ul></details>
  <details class="etf-method"><summary>백테스트 · 시점보존 이력</summary><div id="etfBacktest">N/A · 검증 가능한 과거 신호·당시 편입 ETF 목록·수정주가가 필요합니다.</div></details>
- <details class="etf-method"><summary>전체 ETF 데이터베이스 · 수집 상태</summary><p class="muted">모든 ETF의 구성종목 조회 성공 여부를 확인합니다. 미수집 ETF를 현물 미보유로 처리하지 않습니다.</p><div class="table-scroll" id="etfCatalog">N/A</div></details>`;
+ <details class="etf-method"><summary>전체 ETF 데이터베이스 · API 시세 / 수집 상태</summary><p class="muted">모든 ETF의 구성종목 조회 성공 여부를 확인합니다. 미수집 ETF를 현물 미보유로 처리하지 않습니다.</p><div class="table-scroll" id="etfCatalog">N/A</div></details>`;
  async function json(url){const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('자료 미확보');return response.json();}
  function relevant(){let rows=data?.stocks||[];if($('etfScope').value==='coverage'){const codes=new Set([...document.querySelectorAll('#rows [data-code]')].map(r=>r.dataset.code));rows=rows.filter(r=>codes.has(r.code));}return rows;}
  const cell=(v,fmt=passiveMoney)=>`<span class="${color(v)}">${fmt(v)}</span>`;
  function rankTable(rows){return `<table class="etf-rank-table"><thead><tr><th>종목명</th><th>추정 순압력<br>억원</th><th>ADV20<br>대비 %</th><th>당일<br>RVOL</th><th>금융투자<br>/ ADV %</th><th>주요 기여 ETF</th><th>신뢰도</th></tr></thead><tbody>${rows.length?rows.map(r=>`<tr tabindex="0" data-passive-code="${r.code}" aria-label="${esc(r.name)} ETF 영향 상세"><td><b>${esc(r.name)}</b><small class="muted">${esc(r.sector||'미분류')} · ${r.code}</small></td><td>${cell(r.net)}${r.partial?'<small class="muted">부분 집계</small>':''}</td><td>${cell(r.adv_pct,passivePct)}</td><td>${finite(r.rvol)?r.rvol.toFixed(2)+'×':'N/A'}</td><td>${cell(r.financial_adv_pct,passivePct)}</td><td>${(r.top_etfs||[]).map(e=>esc(e.name)).join('<br>')||'N/A'}</td><td class="muted">${esc(r.confidence)}</td></tr>`).join(''):'<tr><td colspan="7">'+(data?'해당 방향의 계산 가능 종목 없음':'N/A · 전체 PDF·좌수 데이터 연결 대기')+'</td></tr>'}</tbody></table>`;}
  function render(){
-  const meta=data?.meta,universe=meta?.universe_count??capabilities?.etf_master_count;
+  const meta=data?.meta,universe=apiEtf?.meta?.count??meta?.universe_count??capabilities?.etf_master_count;
   let text=data?`기준 ${meta.as_of} · ${meta.available_at||'갱신시각 미확보'} · ${meta.status==='partial'?'부분 수집':'수집 완료'} · 실제 매매시점 미확인`:status?.message||'ETF 원자료·배포 권한 확인 대기. 현재 추정치 N/A.';
   if(status?.status==='failed')text+=' · 최근 수집 실패, 직전 자료 기준일 확인 필요';
-  if(!meta&&capabilities)text+=` · 출처 KRX · 표본 기준일 ${capabilities.as_of||'N/A'} · 접근 확인 ${capabilities.checked_at||'N/A'}`;
+  if(status?.openapi_mode)text+=` · ETF 시세 기준 ${apiEtf?.meta?.as_of||'N/A'} · 갱신 ${apiEtf?.meta?.fetched_at||status.checked_at||'N/A'}`;
+  if(!status?.openapi_mode&&!meta&&capabilities)text+=` · 출처 KRX · 표본 기준일 ${capabilities.as_of||'N/A'} · 접근 확인 ${capabilities.checked_at||'N/A'}`;
   $('etfState').textContent=text;
   const sample=capabilities?.pdf_probe?.filter(r=>r.ok).length;
-  $('etfKpis').innerHTML=[['국내 ETF 전체',universe??'N/A'],['PDF 전체 수집',meta?`${meta.pdf_success_count} / ${meta.universe_count}`:'N/A'],['전체 수집률',finite(meta?.pdf_success_pct)?meta.pdf_success_pct.toFixed(1)+'%':'N/A'],['표본 접근 시험',sample!==undefined?`${sample}회 성공 / ${capabilities.pdf_probe.length}회`:'N/A']].map(([k,v])=>`<div><span>${k}</span><strong>${v}</strong></div>`).join('');
+  $('etfKpis').innerHTML=[['국내 ETF 전체',universe??'N/A'],['PDF 전체 수집',meta?`${meta.pdf_success_count} / ${meta.universe_count}`:'N/A'],['전체 수집률',finite(meta?.pdf_success_pct)?meta.pdf_success_pct.toFixed(1)+'%':'N/A'],[status?.openapi_mode?'연결 방식':'표본 접근 시험',status?.openapi_mode?'OpenAPI · 로그인 없음':sample!==undefined?`${sample}회 성공 / ${capabilities.pdf_probe.length}회`:'N/A']].map(([k,v])=>`<div><span>${k}</span><strong>${v}</strong></div>`).join('');
   const q=$('etfSearch').value.trim(),sector=$('etfSector').value,rows=relevant();
   $('etfBuy').innerHTML=rankTable(passiveRanking(rows,'buy',q,sector));$('etfSell').innerHTML=rankTable(passiveRanking(rows,'sell',q,sector));$('etfExport').disabled=!data;
-  $('etfCatalog').innerHTML=data?.catalog?.length?`<table><thead><tr><th>ETF</th><th>운용사</th><th>추종지수</th><th>유형</th><th>기준일</th><th>PDF</th><th>AUM 억원</th><th>NAV 원</th><th>상장좌수</th></tr></thead><tbody>${data.catalog.map(f=>`<tr><td>${esc(f.name)}<small>${f.code}</small></td><td>${esc(f.manager||'N/A')}</td><td>${esc(f.index||'N/A')}</td><td>${esc(f.type||'N/A')}</td><td>${esc(f.quote_date)}</td><td>${f.pdf_ok?'수집':'N/A'}</td><td>${passiveMoney(f.aum)}</td><td>${finite(f.nav)?f.nav.toLocaleString():'N/A'}</td><td>${finite(f.units)?f.units.toLocaleString():'N/A'}</td></tr>`).join('')}</tbody></table>`:'목록 접근 확인 '+(universe??'N/A')+'개 · 전체 PDF 데이터베이스는 수집·이용 범위 확인 후 표시';
+  const catalog=apiEtf?.funds||data?.catalog||[];
+  $('etfCatalog').innerHTML=catalog.length?`<table><thead><tr><th>ETF</th><th>운용사</th><th>추종지수</th><th>유형</th><th>기준일</th><th>PDF</th><th>AUM 억원</th><th>NAV 원</th><th>상장좌수</th></tr></thead><tbody>${catalog.map(f=>`<tr><td>${esc(f.name)}<small>${f.code}</small></td><td>${esc(f.manager||'N/A')}</td><td>${esc(f.index||'N/A')}</td><td>${esc(f.type||'N/A')}</td><td>${esc(f.quote_date)}</td><td>${f.pdf_ok?'수집':'N/A'}</td><td>${passiveMoney(f.aum)}</td><td>${finite(f.nav)?f.nav.toLocaleString():'N/A'}</td><td>${finite(f.units)?f.units.toLocaleString():'N/A'}</td></tr>`).join('')}</tbody></table>`:'목록 접근 확인 '+(universe??'N/A')+'개 · 전체 PDF 데이터베이스는 수집·이용 범위 확인 후 표시';
  }
  function setData(d){data=validatePassive(d);const sectors=[...new Set(data.stocks.map(r=>r.sector).filter(Boolean))].sort();$('etfSector').innerHTML='<option>전체 업종</option>'+sectors.map(s=>`<option>${esc(s)}</option>`).join('');render();}
  async function fundDetail(row){const token=++sequence;$('etfFunds').textContent='편입 ETF 전체 목록 불러오는 중…';let funds=[];
@@ -62,10 +64,13 @@ async function mount(){
  root.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset.passiveCode)select(e.target.dataset.passiveCode);});
  $('etfImport').onchange=async e=>{try{const b=JSON.parse(await e.target.files[0].text());history=b.history||{days:[]};localFunds=b.funds||{};shards.clear();setData(b);$('etfState').textContent+=' · 브라우저에서 불러온 실제 파일 · 서버 업로드 없음';}catch(error){$('etfState').textContent=error.message;}};
  $('etfExport').onclick=()=>{const rows=[...passiveRanking(relevant(),'buy',$('etfSearch').value,$('etfSector').value),...passiveRanking(relevant(),'sell',$('etfSearch').value,$('etfSector').value)];const q=v=>'"'+String(v??'N/A').replaceAll('"','""')+'"';const content='\ufeff'+[['종목코드','종목명','기준일','가용효과합계_억원','설정효과_억원','리밸런싱_억원','매수합계_억원','매도합계_억원','ADV20_억원','ADV20대비_%','RVOL','금융투자_ADV_%','부분집계'],...rows.map(r=>[r.code,r.name,r.date,...['net','creation','rebalance','gross_buy','gross_sell','adv20'].map(k=>finite(r[k])?r[k]/1e8:null),r.adv_pct,r.rvol,r.financial_adv_pct,r.partial])].map(r=>r.map(q).join(',')).join('\n');const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='ETF_estimated_pressure.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
- const results=await Promise.allSettled(['etf-flow.json','etf-status.json','etf-capabilities.json','etf-history.json','etf-backtest.json'].map(f=>json('data/'+f)));
+ const results=await Promise.allSettled(['etf-flow.json','etf-status.json','etf-capabilities.json','etf-history.json','etf-backtest.json','etf-openapi.json'].map(f=>json('data/'+f)));
  if(results[1].status==='fulfilled')status=results[1].value;if(results[2].status==='fulfilled')capabilities=results[2].value;if(results[3].status==='fulfilled')history=results[3].value;if(results[4].status==='fulfilled')backtest=results[4].value;
- if(results[0].status==='fulfilled'){try{setData(results[0].value);}catch(e){$('etfState').textContent='ETF 데이터 검증 실패 · '+e.message;}}else render();
+ if(results[5].status==='fulfilled')apiEtf=results[5].value;
+ if(status?.openapi_mode){data=null;history={days:[]};render();}
+ else if(results[0].status==='fulfilled'){try{setData(results[0].value);}catch(e){$('etfState').textContent='ETF 데이터 검증 실패 · '+e.message;}}else render();
  if(backtest?.groups?.length)$('etfBacktest').innerHTML='<p>다음 거래일 종가 진입 · 중복 신호 제거 · 거래비용 미반영 · 매수 추천 성과 아님</p><table><thead><tr><th>방향 / 기간</th><th>발생 횟수</th><th>평균 초과수익률</th><th>중앙값</th><th>방향 적중률</th><th>상대자산 최대낙폭</th></tr></thead><tbody>'+backtest.groups.map(g=>`<tr><td>${g.direction===1?'매수 압력':'매도 압력'} / ${g.horizon}일</td><td>${g.n}</td><td>${passivePct(g.mean)}</td><td>${passivePct(g.median)}</td><td>${passivePct(g.win_pct)}</td><td>${passivePct(g.max_drawdown)}</td></tr>`).join('')+'</tbody></table>';
  const obs=new ResizeObserver(()=>chart?.resize());obs.observe($('etfHistoryChart'));
 }
 if(typeof document!=='undefined')mount().catch(e=>{const el=document.getElementById('passivePanel');if(el)el.textContent='ETF 패널 로드 실패 · '+e.message;});
+

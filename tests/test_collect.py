@@ -50,7 +50,7 @@ class AuthenticationTest(unittest.TestCase):
                  'pykrx.website':types.ModuleType('pykrx.website'),
                  'pykrx.website.comm':types.SimpleNamespace(webio=types.SimpleNamespace(_session=None))}
         with tempfile.TemporaryDirectory() as d,patch.object(m,'ROOT',pathlib.Path(d)),patch.dict(os.environ,{'KRX_ID':'UNIT_TEST_ONLY','KRX_PW':'UNIT_TEST_ONLY','FLOW_DATA_USE_CONFIRMED':'true'}),patch.dict(sys.modules,modules):
-            with self.assertRaisesRegex(ValueError,'KRX 인증 실패'):
+            with self.assertRaisesRegex(ValueError,'영구 비활성화'):
                 m.pykrx_dataset('20251001','20251022')
         stock.get_index_ohlcv_by_date.assert_not_called()
 if __name__=='__main__':unittest.main()
@@ -65,4 +65,5 @@ class CredentialWhitespaceTest(unittest.TestCase):
             module.normalize_krx_credentials()
             self.assertEqual(os.environ['KRX_ID'],'UNIT_TEST_ID')
             self.assertEqual(os.environ['KRX_PW'],'UNIT TEST ONLY')
+
 

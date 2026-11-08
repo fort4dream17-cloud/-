@@ -1,21 +1,10 @@
 name: Update index universe and flow
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ['Verify KRX authentication once']
-    types: [completed]
+  workflow_call:
   push:
     branches: [main]
-    paths:
-      - 'scripts/collect-index.py'
-      - 'scripts/collect.py'
-      - 'scripts/check-freshness.py'
-      - 'tests/test_freshness.py'
-      - 'scripts/collect-price-history.py'
-      - 'scripts/update-pension-disclosures.py'
-      - 'config/index-universe.json'
-      - 'config/sector-lookup.json'
-      - '.github/workflows/update-index-universe.yml'
+    paths: ['scripts/krx_openapi.py', 'scripts/collect-openapi.py', 'scripts/collect.py', 'tests/test_openapi.py', '.github/workflows/update-index-universe.yml']
   schedule:
     - cron: '35 9,10,11 * * 1-5'
 permissions:
@@ -25,86 +14,54 @@ concurrency:
   cancel-in-progress: false
   queue: max
 jobs:
-  index-flow:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+  openapi:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
+        with: {ref: main, fetch-depth: 0}
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+        with: {python-version: '3.11'}
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: actions/cache@v4
-        with:
-          path: .cache/index-flow-v1
-          key: index-flow-v1-${{ github.run_id }}
-          restore-keys: index-flow-v1-
-      - run: pip install -r scripts/requirements.txt
-      - name: Check latest KRX session and existing data
-        id: freshness
-        env:
-          KRX_ID: ${{ secrets.KRX_ID }}
-          KRX_PW: ${{ secrets.KRX_PW }}
-          FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
-        run: python scripts/check-freshness.py --scope index --plan
-      - run: npm test
-      - run: python -m unittest discover -s tests -p "test_*.py"
-      - name: Collect official constituents and market-wide flow
-        id: collect
-        if: steps.freshness.outputs.needed != 'false' && steps.freshness.outputs.auth_ready != 'false'
+        with: {node-version: '22'}
+      - name: Validate calculations and no-login policy
+        run: |
+          npm test
+          python -m unittest discover -s tests -p 'test_*.py'
+      - name: Refresh through AUTH_KEY only
+        id: api
         continue-on-error: true
         env:
-          KRX_ID: ${{ secrets.KRX_ID }}
-          KRX_PW: ${{ secrets.KRX_PW }}
-          FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
-          FLOW_SECTOR_MAP_URL: ${{ vars.FLOW_SECTOR_MAP_URL }}
-          FLOW_SECTOR_MAP_TOKEN: ${{ secrets.FLOW_SECTOR_MAP_TOKEN }}
-        run: python scripts/collect-index.py
-      - name: Refresh disclosed pension holdings
-        id: disclosures
-        continue-on-error: true
-        if: steps.freshness.outputs.disclosure_needed != 'false'
-        env:
-          DART_API_KEY: ${{ secrets.DART_API_KEY || secrets.OPENDART_API_KEY || secrets.OPEN_DART_API_KEY }}
-        run: python scripts/update-pension-disclosures.py
-      - name: Backfill year of prices and MA60 warmup
-        id: prices
-        if: steps.freshness.outputs.needed != 'false' && steps.freshness.outputs.auth_ready != 'false'
-        continue-on-error: true
-        env:
-          KRX_ID: ${{ secrets.KRX_ID }}
-          KRX_PW: ${{ secrets.KRX_PW }}
           KRX_API_KEY: ${{ secrets.KRX_API_KEY || secrets.KRX_OPEN_API_KEY || secrets.KRX_AUTH_KEY }}
-          FLOW_DATA_USE_CONFIRMED: ${{ vars.FLOW_DATA_USE_CONFIRMED }}
-        run: python scripts/collect-price-history.py
-      - name: Verify freshness and write recovery status
-        id: verification
-        if: always()
-        continue-on-error: true
-        run: python scripts/check-freshness.py --scope index --verify
-      - name: Publish verified index data and status
+        run: python scripts/collect-openapi.py
+      - name: Publish API results before independent disclosure refresh
         if: always()
         run: |
           git config user.name 'flow-data-bot'
           git config user.email 'flow-data-bot@users.noreply.github.com'
-          if [ -f dist/data/krx-auth.json ]; then git add dist/data/krx-auth.json; fi
-          git add dist/data/index-*.json dist/data/pension-holdings.json
-          if [ -f dist/data/index-update-monitor.json ]; then git add dist/data/index-update-monitor.json; fi
-          if [ -f dist/data/price-status.json ]; then git add dist/data/price-status.json; fi
-          if [ -f dist/data/disclosure-status.json ]; then git add dist/data/disclosure-status.json; fi
-          if [ -f config/index-membership-history.json ]; then git add config/index-membership-history.json; fi
+          git add dist/data
           if ! git diff --cached --quiet; then
-            git commit -m 'Update index universe, verified flows and disclosure status'
+            git commit -m 'Refresh OpenAPI quotes and availability without web login'
             git pull --rebase origin main
             git push origin HEAD:main
           fi
-      - name: Preserve collection failure
-        if: steps.collect.outcome == 'failure' || steps.prices.outcome == 'failure' || steps.disclosures.outcome == 'failure' || steps.verification.outcome == 'failure'
+      - name: Refresh independent OpenDART disclosures
+        id: dart
+        continue-on-error: true
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY || secrets.OPENDART_API_KEY || secrets.OPEN_DART_API_KEY }}
+        run: python scripts/update-pension-disclosures.py
+      - name: Publish observed API data and separate availability states
+        if: always()
+        run: |
+          git config user.name 'flow-data-bot'
+          git config user.email 'flow-data-bot@users.noreply.github.com'
+          git add dist/data
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh OpenAPI quotes and availability without web login'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - if: steps.api.outcome == 'failure'
         run: exit 1
 
