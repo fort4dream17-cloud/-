@@ -1,1 +1,1 @@
-{"status": "failed", "checked_at": "2026-11-04T02:23:50.167278+09:00", "message": "가격 수집 오류: ValueError"}
+{"status": "failed", "checked_at": "2026-11-08T16:35:54.515437+09:00", "web_login": false, "message": "idx/kospi_dd_trd HTTP 401 · API 키 유효기간·서비스별 이용승인 확인 필요"}
