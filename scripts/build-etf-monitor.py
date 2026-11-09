@@ -8,8 +8,9 @@ def save(p,d):
     p.parent.mkdir(parents=True,exist_ok=True);q=p.with_suffix('.tmp');q.write_text(json.dumps(d,ensure_ascii=False,allow_nan=False),encoding='utf-8');q.replace(p)
 def finite(v):return isinstance(v,(float,int)) and not isinstance(v,bool) and math.isfinite(v)
 def ratio(a,b):return a/b if finite(a) and finite(b) and b>0 else None
-def build(current,days):
+def build(current,days,calendar=None):
     asof=current['meta']['as_of'];ordered=sorted({d['as_of']:d for d in days if d['as_of']<=asof}.values(),key=lambda d:d['as_of'])[-121:]
+    if calendar is not None:ordered=[d for d in ordered if d['as_of'] in calendar]
     byday={d['as_of']:{f['code']:f for f in d['funds']} for d in ordered}
     byday[asof]={f['code']:f for f in current['funds']}
     dates=sorted(byday);out=[];hist={}
@@ -43,5 +44,6 @@ def main(root=ROOT):
             if d['as_of']!=item['as_of']:raise ValueError('history date mismatch')
             days.append(d)
         except FileNotFoundError:continue
-    result=build(current,days);save(data/'etf-monitor.json',result);print(json.dumps(result['meta'],ensure_ascii=False))
+    calendar={r[0] for r in read(data/'index-price-history.json')['benchmarks']}
+    result=build(current,days,calendar);save(data/'etf-monitor.json',result);print(json.dumps(result['meta'],ensure_ascii=False))
 if __name__=='__main__':main()

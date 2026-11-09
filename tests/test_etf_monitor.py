@@ -38,3 +38,13 @@ class TestIssuerIntegration(unittest.TestCase):
     return TestPdf().payload()
    with patch.object(h,'get',side_effect=get):h.main(root)
    result=json.loads((data/'etf-holdings.json').read_text());self.assertEqual(result['meta']['matching_date_count'],1);self.assertEqual(result['stocks']['005930']['etfs'][0]['etf_code'],'069500');self.assertFalse(result['funds']['069500']['pressure_available'])
+
+class TestTradingCalendar(unittest.TestCase):
+ def test_nontrading_rows_do_not_break_returns_or_adv(self):
+  from datetime import date,timedelta
+  dates=[(date(2026,10,1)+timedelta(days=i)).isoformat() for i in range(22)]
+  days=[{'as_of':d,'funds':[{'code':'069500','close':100,'nav':100,'turnover':100,'volume':10,'units':100}]} for d in dates]
+  days[1]['funds'][0]['close']=None;days[1]['funds'][0]['turnover']=None
+  f={**days[-1]['funds'][0],'quote_date':dates[-1]}
+  result=b.build({'meta':{'as_of':dates[-1]},'funds':[f]},days,set(dates)-{dates[1]})
+  self.assertEqual(result['meta']['sessions'],21);self.assertEqual(result['funds'][0]['adv20'],100);self.assertEqual(result['funds'][0]['returns']['20'],0)

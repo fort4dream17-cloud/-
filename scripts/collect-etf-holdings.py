@@ -36,7 +36,7 @@ def main(root=ROOT):
     data=root/'dist/data';quotes=read(data/'etf-openapi.json');target=quotes['meta']['as_of'];known={f['code']:f for f in quotes['funds']};stocks=set(read(data/'openapi-quotes.json')['stocks'])
     state={'checked_at':stamp(),'as_of':target,'source':'삼성자산운용 KODEX 공개 PDF','web_login':False,'universe_count':len(known),'scope':'KODEX 국내주식 ETF · 다른 운용사/해외/파생/채권은 미연결'}
     old=read(data/'etf-holdings.json') if (data/'etf-holdings.json').exists() else {'funds':{}}
-    funds=dict(old.get('funds',{}));products={};failed=[]
+    funds=dict(old.get('funds',{}));products={};failed=[];reasons={}
     try:
         total=None
         for page in range(1,31):
@@ -57,14 +57,17 @@ def main(root=ROOT):
             c=item['stkTicker'];fid=item['fId']
             if not re.fullmatch(r'[A-Za-z0-9]+',fid):raise ValueError('invalid product id')
             try:
+                if funds.get(c,{}).get('as_of')==target:
+                    success+=1;consecutive=0;continue
                 p=parse_pdf(get('/api/v1/kodex/product-pdf/'+fid+'.do?gijunYMD='+target.replace('-','.')),target,stocks)
                 funds[c]={**p,'code':c,'name':known[c]['name'],'source_url':BASE+'/etf/product/view.do?id='+fid,'fetched_at':stamp(),'manager':'삼성자산운용','index':known[c].get('index'),'aum':known[c].get('aum'),'pressure_available':False}
                 success+=1;consecutive=0
-            except (ValueError,KeyError,TypeError,urllib.error.URLError,TimeoutError):
+            except (ValueError,KeyError,TypeError,urllib.error.URLError,TimeoutError) as e:
+                reasons[c]=(str(e)[:120] if isinstance(e,ValueError) else type(e).__name__+(' '+str(e.code) if isinstance(e,urllib.error.HTTPError) else ''))
                 failed.append(c);consecutive+=1
                 if consecutive>=8:break
             if (success+len(failed))%20==0:print('PDF collected',success,'failed',len(failed),flush=True)
-        state.update(status='success' if success==len(selected) else 'partial',success_count=success,failed_codes=failed,attempted_count=success+len(failed),unattempted_count=len(selected)-success-len(failed))
+        state.update(status='success' if success==len(selected) else 'partial',success_count=success,failed_codes=failed,failed_reasons=reasons,attempted_count=success+len(failed),unattempted_count=len(selected)-success-len(failed))
     except Exception as e:state.update(status='failed',message='Public disclosure collection: '+(str(e)[:160] if isinstance(e,ValueError) else type(e).__name__),success_count=0)
     current={c:f for c,f in funds.items() if c in known}
     reverse={}
