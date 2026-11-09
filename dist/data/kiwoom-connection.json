@@ -1,1 +1,1 @@
-{"checked_at": "2026-11-09T14:05:57.810198+09:00", "web_login": false, "configured": true, "phase": "token", "status": "failed", "message": "HTTP 400 provider : "}
+{"checked_at": "2026-11-09T14:11:35.967274+09:00", "web_login": false, "configured": true, "phase": "token", "status": "failed", "message": "HTTP response {\"http_status\": 400, \"content_type\": \"text/html\", \"body_bytes\": 166, \"html_title\": \"400 Bad Request\", \"markers\": [\"Bad Request\"]}"}
