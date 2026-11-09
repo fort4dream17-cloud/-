@@ -1,5 +1,5 @@
 """Kiwoom REST read-only flow collection. No web login or order endpoints."""
-import json,os,pathlib,time,urllib.request,urllib.error,subprocess,sys,tempfile
+import json,os,pathlib,time,urllib.request,urllib.error,subprocess,sys,tempfile,re,math
 from datetime import datetime
 from collect import atomic,now,collection_end
 from krx_openapi import Client as KRXClient, code as krx_code
@@ -9,6 +9,28 @@ def number(x):
     if x is None or str(x).strip()=='':return None
     return float(str(x).replace(',',''))
 class APIError(Exception):pass
+def http_failure(status,raw,headers,secrets=()):
+    # Publish diagnostics only; never persist a response body or credential echo.
+    text=raw.decode('utf-8',errors='replace')
+    def clean(value):
+        value=str(value)
+        for secret in secrets:
+            if secret:value=value.replace(secret,'[redacted]')
+        return value[:250]
+    detail={'http_status':status,'content_type':str(headers.get('Content-Type','')).split(';')[0],'body_bytes':len(raw)}
+    try:
+        obj=json.loads(text)
+        if isinstance(obj,dict):
+            for k in ['return_code','return_msg','error','error_description','message','error_code','rsp_cd','rsp_msg']:
+                if k in obj and isinstance(obj[k],(str,int,float)):detail[k]=clean(obj[k])
+            detail['response_keys']=[clean(k) for k in obj if not any(x in k.lower() for x in ['token','key','secret','account'])][:15]
+    except ValueError:
+        title=re.search(r'<title[^>]*>([^<]{1,160})</title>',text,re.I)
+        if title:detail['html_title']=clean(title.group(1))
+        markers=['Request Rejected','Access Denied','Bad Request','Forbidden','not allowed','IP address']
+        detail['markers']=[m for m in markers if m.lower() in text.lower()]
+    return 'HTTP response '+json.dumps(detail,ensure_ascii=False)
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):return None
 class Client:
@@ -21,12 +43,7 @@ class Client:
         try:
             with urllib.request.build_opener(NoRedirect).open(req,timeout=30) as r:payload=json.load(r);h=r.headers
         except urllib.error.HTTPError as e:
-            try:
-                error=json.loads(e.read(16384));msg=str(error.get('return_msg',''));code=str(error.get('return_code',''))
-            except Exception:msg='';code=''
-            for value in [self.key,self.secret,self.token]:
-                if value:msg=msg.replace(value,'[redacted]')
-            raise APIError('HTTP '+str(e.code)+' provider '+code+': '+msg[:250]) from None
+            raise APIError(http_failure(e.code,e.read(16384),e.headers,[self.key,self.secret,self.token])) from None
         except Exception:raise APIError('network/response failure') from None
         if str(payload.get('return_code',0))!='0':
             msg=str(payload.get('return_msg',''))
@@ -62,6 +79,9 @@ def read(p):return json.loads(p.read_text())
 def run(root=ROOT):
     data=root/'dist/data';state={'checked_at':now().isoformat(),'source':'Kiwoom REST ka10059','web_login':False,'market':'KRX','configured':bool(os.environ.get('KIWOOM_APP_KEY') and os.environ.get('KIWOOM_SECRET_KEY'))};client=Client()
     try:
+        gate=data/'kiwoom-connection.json'
+        if gate.exists() and read(gate).get('status')=='failed':
+            raise APIError('Connection verification failed; automatic token retries paused. Run Verify Kiwoom REST connection after correcting the configuration.')
         client.authenticate();state['authentication']='success'
         history=read(data/'index-price-history.json');target=history['meta']['as_of'];end=target.replace('-','')
         benchmark=dict(history['benchmarks']);krx=KRXClient();caps={}

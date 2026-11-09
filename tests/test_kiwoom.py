@@ -30,3 +30,14 @@ class TestPublication(unittest.TestCase):
             with patch.object(m,'Client',return_value=client):self.assertEqual(m.run(root),1)
             self.assertEqual((data/'index-market.json').read_bytes(),before)
             state=json.loads((data/'kiwoom-status.json').read_text());self.assertEqual(state['status'],'failed');self.assertIn('overlap mismatch',state['message'])
+
+class TestDiagnostics(unittest.TestCase):
+    def test_oauth_error_and_redaction(self):
+        from kiwoom_flow import http_failure
+        raw=b'{"error":"invalid_request","error_description":"bad secret123","token":"private"}'
+        value=http_failure(400,raw,{'Content-Type':'application/json'},['secret123'])
+        self.assertIn('invalid_request',value);self.assertNotIn('secret123',value);self.assertNotIn('private',value)
+    def test_html_body_is_not_published(self):
+        from kiwoom_flow import http_failure
+        value=http_failure(400,b'<title>Request Rejected</title>hidden secret',{'Content-Type':'text/html'})
+        self.assertIn('Request Rejected',value);self.assertNotIn('hidden secret',value)

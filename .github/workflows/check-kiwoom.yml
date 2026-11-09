@@ -1,4 +1,5 @@
 name: Verify Kiwoom REST connection
+# Record bounded response diagnostics; never publish response bodies.
 on:
   workflow_dispatch:
   push:
