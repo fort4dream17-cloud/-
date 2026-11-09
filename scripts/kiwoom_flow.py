@@ -20,7 +20,13 @@ class Client:
         req=urllib.request.Request('https://api.kiwoom.com'+path,data=json.dumps(body).encode(),headers={'Content-Type':'application/json;charset=UTF-8',**(headers or {})},method='POST')
         try:
             with urllib.request.build_opener(NoRedirect).open(req,timeout=30) as r:payload=json.load(r);h=r.headers
-        except urllib.error.HTTPError as e:raise APIError('HTTP '+str(e.code)) from None
+        except urllib.error.HTTPError as e:
+            try:
+                error=json.loads(e.read(16384));msg=str(error.get('return_msg',''));code=str(error.get('return_code',''))
+            except Exception:msg='';code=''
+            for value in [self.key,self.secret,self.token]:
+                if value:msg=msg.replace(value,'[redacted]')
+            raise APIError('HTTP '+str(e.code)+' provider '+code+': '+msg[:250]) from None
         except Exception:raise APIError('network/response failure') from None
         if str(payload.get('return_code',0))!='0':
             msg=str(payload.get('return_msg',''))

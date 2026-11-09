@@ -1,0 +1,56 @@
+name: Verify Kiwoom REST connection
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/check-kiwoom.yml']
+permissions:
+  contents: write
+concurrency:
+  group: kiwoom-connection-check
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Check token once without web login
+        id: api
+        continue-on-error: true
+        env:
+          KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
+          KIWOOM_SECRET_KEY: ${{ secrets.KIWOOM_SECRET_KEY }}
+        run: |
+          python - <<'PY'
+          import sys,json
+          sys.path.insert(0,'scripts')
+          from kiwoom_flow import Client,APIError
+          from collect import atomic,now
+          c=Client()
+          s={'checked_at':now().isoformat(),'web_login':False,'configured':bool(c.key and c.secret),'phase':'token'}
+          try:
+              c.authenticate()
+              s.update(status='success',message='REST token issued; no investor data refresh in this verification')
+          except APIError as e:
+              s.update(status='failed',message=str(e))
+          atomic('dist/data/kiwoom-connection.json',s)
+          print(json.dumps(s,ensure_ascii=False))
+          sys.exit(0 if s['status']=='success' else 1)
+          PY
+      - name: Publish sanitized connection status
+        if: always()
+        run: |
+          git config user.name 'flow-data-bot'
+          git config user.email 'flow-data-bot@users.noreply.github.com'
+          git add dist/data/kiwoom-connection.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Record sanitized Kiwoom REST connection result'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - if: steps.api.outcome == 'failure'
+        run: exit 1
