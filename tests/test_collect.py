@@ -21,12 +21,10 @@ class PipelineTest(unittest.TestCase):
             good=subprocess.run(cmd,capture_output=True);self.assertEqual(good.returncode,0,good.stderr)
             before=out.read_bytes();obj['rows'].append(a[0]);source.write_text(json.dumps(obj))
             bad=subprocess.run(cmd,capture_output=True);self.assertNotEqual(bad.returncode,0);self.assertEqual(out.read_bytes(),before)
-    def test_missing_credentials_rejected_before_network(self):
+    def test_removed_provider_is_rejected_by_cli_without_network(self):
         with tempfile.TemporaryDirectory() as d:
-            import os
-            env={k:v for k,v in os.environ.items() if k not in ('KRX_ID','KRX_PW')}
-            r=subprocess.run([sys.executable,str(ROOT/'scripts/collect.py'),'--provider','pykrx','--end','20251022','--output',d+'/market.json','--log-dir',d+'/logs'],capture_output=True,env=env)
-            self.assertNotEqual(r.returncode,0);self.assertIn('KRX_ID',r.stderr.decode());self.assertFalse(pathlib.Path(d+'/market.json').exists())
+            r=subprocess.run([sys.executable,str(ROOT/'scripts/collect.py'),'--provider','retired','--output',d+'/market.json'],capture_output=True)
+            self.assertNotEqual(r.returncode,0);self.assertIn('invalid choice',r.stderr.decode());self.assertFalse(pathlib.Path(d+'/market.json').exists())
 class CollectionDateTest(unittest.TestCase):
     def test_safe_query_boundaries(self):
         spec=importlib.util.spec_from_file_location('collector',ROOT/'scripts/collect.py')
@@ -37,33 +35,3 @@ class CollectionDateTest(unittest.TestCase):
         self.assertEqual(m.collection_end(current,'20261023'),'20261023')
         for end in ['20261026','20261027']:
             with self.assertRaises(ValueError):m.collection_end(current,end)
-class AuthenticationTest(unittest.TestCase):
-    def test_failed_login_stops_before_any_market_query(self):
-        import types,os
-        from unittest.mock import patch,Mock
-        spec=importlib.util.spec_from_file_location('collector_auth',ROOT/'scripts/collect.py')
-        m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
-        session=type('Session',(),{'request':lambda *a,**k:None})
-        stock=Mock()
-        modules={'requests':types.SimpleNamespace(sessions=types.SimpleNamespace(Session=session)),
-                 'pykrx':types.SimpleNamespace(stock=stock),
-                 'pykrx.website':types.ModuleType('pykrx.website'),
-                 'pykrx.website.comm':types.SimpleNamespace(webio=types.SimpleNamespace(_session=None))}
-        with tempfile.TemporaryDirectory() as d,patch.object(m,'ROOT',pathlib.Path(d)),patch.dict(os.environ,{'KRX_ID':'UNIT_TEST_ONLY','KRX_PW':'UNIT_TEST_ONLY','FLOW_DATA_USE_CONFIRMED':'true'}),patch.dict(sys.modules,modules):
-            with self.assertRaisesRegex(ValueError,'영구 비활성화'):
-                m.pykrx_dataset('20251001','20251022')
-        stock.get_index_ohlcv_by_date.assert_not_called()
-if __name__=='__main__':unittest.main()
-
-class CredentialWhitespaceTest(unittest.TestCase):
-    def test_boundary_whitespace_is_removed_without_changing_internal_characters(self):
-        import os
-        from unittest.mock import patch
-        spec=importlib.util.spec_from_file_location('collector_whitespace',ROOT/'scripts/collect.py')
-        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-        with patch.dict(os.environ,{'KRX_ID':'  UNIT_TEST_ID\\r\\n'.replace('\\r','\r').replace('\\n','\n'),'KRX_PW':'  UNIT TEST ONLY\\n'.replace('\\n','\n')}):
-            module.normalize_krx_credentials()
-            self.assertEqual(os.environ['KRX_ID'],'UNIT_TEST_ID')
-            self.assertEqual(os.environ['KRX_PW'],'UNIT TEST ONLY')
-
-

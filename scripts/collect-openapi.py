@@ -86,7 +86,7 @@ def refresh_etfs(root,client,end):
     atomic(data/'etf-openapi.json',result);return {'status':'success','as_of':current['as_of'],'count':len(current['funds'])}
 def run(root,client,end,probe=False):
     data=root/'dist/data';data.mkdir(parents=True,exist_ok=True)
-    report={'checked_at':now().isoformat(),'mode':'openapi_only','web_login':False,'configured':bool(client.key),'services':[],'components':{}}
+    report={'checked_at':now().isoformat(),'mode':'openapi_only','web_login':False,'configured':bool(client.key),'key_configuration':client.key_diagnostics,'services':[],'components':{}}
     for svc in SERVICES:
         entry={'service':SERVICES[svc],'query_date':iso(end)}
         try:entry.update({'status':'success','row_count':len(client.get(svc,end.strftime('%Y%m%d')))})
@@ -116,3 +116,4 @@ if __name__=='__main__':
     except Exception as exc:
         atomic(ROOT/'dist/data/krx-openapi-status.json',{'status':'failed','mode':'openapi_only','web_login':False,'checked_at':now().isoformat(),'message':'OpenAPI 처리 실패: '+type(exc).__name__})
         print('OpenAPI processing failed:',type(exc).__name__);raise SystemExit(1)
+

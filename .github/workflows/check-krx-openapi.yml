@@ -24,7 +24,9 @@ jobs:
         id: api
         continue-on-error: true
         env:
-          KRX_API_KEY: ${{ secrets.KRX_API_KEY || secrets.KRX_OPEN_API_KEY || secrets.KRX_AUTH_KEY }}
+          KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
+          KRX_OPEN_API_KEY: ${{ secrets.KRX_OPEN_API_KEY }}
+          KRX_AUTH_KEY: ${{ secrets.KRX_AUTH_KEY }}
         run: python scripts/collect-openapi.py --probe
       - name: Publish key-safe service results
         if: always()
@@ -39,4 +41,5 @@ jobs:
           fi
       - if: steps.api.outcome == 'failure'
         run: exit 1
+
 

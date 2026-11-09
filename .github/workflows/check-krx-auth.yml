@@ -1,9 +1,0 @@
-name: Verify KRX authentication once
-on:
-  workflow_dispatch:
-jobs:
-  disabled:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo 'KRX web login is permanently disabled. Use Verify KRX OpenAPI; no password is required.'
-

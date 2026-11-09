@@ -14,6 +14,13 @@ def fixture(service,day):
     return {'OutBlock_1':rows}
 
 class OpenAPITest(unittest.TestCase):
+    def test_key_selection_reports_names_and_conflict_without_values(self):
+        with patch.dict('os.environ',{'KRX_API_KEY':'FIRST_SYNTHETIC_VALUE','KRX_OPEN_API_KEY':'SECOND_SYNTHETIC_VALUE'},clear=True):
+            client=Client(transport=fixture)
+            self.assertEqual(client.key_diagnostics['selected_secret'],'KRX_API_KEY')
+            self.assertTrue(client.key_diagnostics['different_keys_present'])
+            self.assertNotIn('SYNTHETIC_VALUE',json.dumps(client.key_diagnostics))
+
     def test_auth_denial_is_not_retried_and_does_not_leak_key(self):
         count=[]
         def transport(service,day):count.append(service);raise urllib.error.HTTPError('https://data-dbg.krx.co.kr',401,'SENSITIVE_KEY_NEVER_PUBLISH',{},None)
@@ -66,12 +73,13 @@ class OpenAPITest(unittest.TestCase):
             with patch('builtins.print'):result=collector.run(root,Client('TEST',transport=source),date(2026,11,6))
             self.assertEqual(result,1);self.assertEqual((data/'index-price-history.json').read_text(),old)
 
-    def test_old_entrypoint_cannot_authenticate_even_with_recovery_enabled(self):
-        from collect import authenticated_stock
-        with patch.dict('os.environ',{'KRX_AUTH_RECOVERY':'true','KRX_ID':'TEST','KRX_PW':'TEST'}):
-            with self.assertRaisesRegex(ValueError,'영구 비활성화'):authenticated_stock()
-
+    def test_web_authentication_source_has_been_removed(self):
+        for path in (ROOT/'scripts').glob('*.py'):
+            content=path.read_text()
+            for obsolete in ('authenticated_stock','MDCCOMS001D1','KRX_PW'):
+                self.assertNotIn(obsolete,content,path)
     def test_workflows_do_not_inject_passwords_or_install_pykrx(self):
         for path in (ROOT/'.github/workflows').glob('*.yml'):
             content=path.read_text();self.assertNotIn('secrets.KRX_PW',content,path);self.assertNotIn('secrets.KRX_ID',content,path)
             self.assertNotIn('pip install -r scripts/requirements.txt',content,path)
+

@@ -133,7 +133,7 @@ def build_day(current, previous, facts, events=None):
       'status':'partial' if pdf_count<expected or missing_prior_funds else 'success','execution_verified':False,
       'prior_etfs_missing_today':missing_prior_funds,
       'scope':'국내 상장 전체 ETF의 국내 현물 종목 직접 바스켓; 재간접 ETF 룩스루 제외',
-      'source':'KRX ETF master / daily quotes / PDF; pykrx',
+      'source':current.get('source','검증된 ETF 바스켓 입력자료'),
       'timing':'변경상장 관측일 기준. 실제 설정·환매 요청일·기초주식 체결일은 미확인.'},'stocks':result,'etfs':list(current_funds.values())}
 
 def rolling(history, code, sessions, n):
@@ -175,3 +175,4 @@ def backtest(history, quotes, sessions, horizon):
             output.append({'code':r['code'],'signal_date':at,'session_index':idx,'direction':direction,
               'excess_pct':excess,'max_drawdown_pct':mdd*100})
     return output
+

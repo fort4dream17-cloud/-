@@ -52,16 +52,16 @@ def inspect(root, scope, expected, today, require_disclosure=True):
 
 
 def provider_session():
-    from collect import authenticated_stock, collection_end, now
-    stock = authenticated_stock()
-    frame = stock.get_index_ohlcv_by_date(
-        (now() - timedelta(days=45)).strftime('%Y%m%d'), collection_end(now()), '1001')
-    if frame is None or frame.empty:
-        raise ValueError('Empty benchmark')
-    date = max(str(d)[:10] for d in frame.index)
-    if date > now().date().isoformat():
-        raise ValueError('Future benchmark')
-    return date
+    from krx_openapi import Client,query_end,kospi_close,APIError
+    client=Client();end=query_end()
+    for ago in range(15):
+        day=end-timedelta(days=ago)
+        if day.weekday()>4:continue
+        rows=client.get('kospi',day.strftime('%Y%m%d'))
+        if rows:
+            kospi_close(rows)
+            return day.isoformat()
+    raise APIError('최근 OpenAPI KOSPI 관측일 미확보')
 
 
 def main():
@@ -122,4 +122,5 @@ def main():
 
 if __name__ == '__main__':
     raise SystemExit(main())
+
 

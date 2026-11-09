@@ -10,9 +10,10 @@
 7. 브랜치 main / Framework None / Build command 비움 / Build output directory dist / Root directory 기본값.
 8. 배포 완료 후 생성된 pages.dev 주소를 확인합니다.
 
-데이터 연결은 별도 단계입니다. 현재 운영 데이터는 비어 있고, 예시는 버튼을 눌러야 표시됩니다.
-KRX_ID와 KRX_PW는 GitHub Settings → Secrets and variables → Actions의 Repository secrets에 직접 등록하세요. 비밀번호를 파일에 넣지 마세요.
-자동 수집과 GitHub Pages workflow는 저장소 변수를 활성화하기 전까지 실행되지 않습니다.
+실제 데이터 연결 상태와 기준일은 대시보드에서 확인하세요. 예시는 버튼을 눌러야 표시됩니다.
+KRX_API_KEY를 GitHub Settings → Secrets and variables → Actions의 Repository secrets에 등록하세요. 웹 로그인 코드는 삭제했으며 비밀번호는 사용하지 않습니다.
+자동 수집은 Update index universe and flow의 OpenAPI 예약 실행을 사용합니다. API 키와 서비스별 이용승인이 필요합니다.
 현재 저장소는 공개입니다. 실데이터 수집·공개는 공급자 이용권한과 접근범위 확인 후 활성화합니다.
 
 업로드 완료 후 저장소 링크를 보내주시면 폴더 구조를 확인할 수 있습니다.
+

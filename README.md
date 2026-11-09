@@ -1,6 +1,6 @@
-# GS 커버리지 수급 모니터
+# 커버리지 수급 모니터링
 
-기존 정적 대시보드를 확장한 실제 데이터 연결용 애플리케이션입니다. 기본 화면에는 가상 숫자를 표시하지 않습니다. **현재 실제 데이터 공급 권한이 없어 운영 `market.json`은 비어 있습니다.** KRX 인증을 우회하지 않으며 접근 불가능한 수급을 기관합계나 0으로 대체하지 않습니다.
+기존 정적 대시보드를 확장한 실제 데이터 연결용 애플리케이션입니다. 기본 화면에는 가상 숫자를 표시하지 않습니다. 기존 검증된 관측치는 보존하며 기준일을 함께 표시합니다. KRX 인증을 우회하지 않으며 접근 불가능한 수급을 기관합계나 0으로 대체하지 않습니다.
 
 ## 구조
 
@@ -10,11 +10,12 @@ dist/                 GitHub Pages / Cloudflare Pages에 그대로 배포
   app.js              검색·정렬·필터·차트·CSV/JSON 입력·브리핑
   engine.js           순수 계산/검증 모듈 (브라우저와 Node 공용)
   vendor/             Apache ECharts 5.6.0, 로컬 번들
-  data/market.json    실제 데이터만 (현재 empty)
+  data/market.json    실제 수급 관측치 (마지막 관측일 보존)
   data/status.json    최근 수집 성공/실패·마지막 기준일
   data/example.json   사용자가 선택할 때만 여는 가상 데이터
 config/coverage.json 기존 프로젝트의 10개 종목
-scripts/collect.py    승인 파일/HTTPS JSON/인증된 pykrx 어댑터
+scripts/collect.py    승인 파일/HTTPS JSON 입력
+scripts/collect-openapi.py OpenAPI 시세 수집
 scripts/validate.mjs  운영 데이터 검증
 .github/workflows/    수집·GitHub Pages 배포 준비 파일
 ```
@@ -32,8 +33,8 @@ scripts/validate.mjs  운영 데이터 검증
 | 주가·20/60MA·상대수익률·거래량·수급 차트 | ECharts 구현, 입력 파일로 동작 |
 | KOSPI/업종 비교 | 입력 지수로 계산. 업종지수 미입력 시 계산 보류 |
 | 점수·브리핑·복사·현재 표 내보내기 | 구현 (검증 전 탐색 점수) |
-| 자동 수집 | 파일/HTTPS 어댑터 검증. pykrx 라이브 호출은 인증 없음/빈 응답으로 실패 |
-| GitHub Actions | 실행 파일 준비. 실제 저장소/Secrets 연결 전 실행 안 됨 |
+| 자동 수집 | OpenAPI AUTH_KEY 전용. 세부 수급/PDF는 미제공으로 갱신 보류 |
+| GitHub Actions | 실제 저장소 연결·예약 실행. API별 승인 상태는 운영 상태 파일 참조 |
 | 휴장일 | 공급자 거래일 목록으로 내부 누락 검사. 새 기준일이 없으면 이전 기준일 유지. 공식 휴장 캘린더 미연결로 휴장과 지연을 단정하지 않음 |
 | 백테스트 | 미구현. 시점보존·종목 편입이력·이벤트 중복 정책 확보 후 Phase 3 |
 
@@ -66,26 +67,23 @@ GitHub Secrets에 `FLOW_DATASET_URL`과 필요시 `FLOW_DATASET_TOKEN`을 설정
 python scripts/collect.py --provider https
 ```
 
-### 3. pykrx 1.2.9 (조건부 어댑터)
+### 3. KRX OpenAPI 전용
 
-KRX 공식 Open API 키와 KRX Data Marketplace 로그인은 **다른 인증 방식**입니다. 이 어댑터는 `KRX_ID`/`KRX_PW`를 사용합니다. 비공식 수집 라이브러리의 정상 응답은 보장되지 않습니다. 공급자의 사용 목적·공개·재배포 허용 범위를 확인한 뒤 `FLOW_DATA_USE_CONFIRMED=true`로 설정합니다. 개인 리서치와 업무/공개 서비스의 이용조건은 같다고 가정하지 않습니다.
+웹 로그인 수집기와 인증/자동 재로그인 코드는 삭제했습니다. 계정 비밀번호를 설정하거나 입력하지 않습니다.
+
+1. GitHub Repository Secret `KRX_API_KEY`에 발급·승인된 실제 API 인증키를 저장합니다.
+2. KOSPI 시리즈, 유가증권 일별매매정보, 코스닥 일별매매정보, ETF 일별매매정보의 이용승인·기간을 확인합니다.
+3. Actions의 **Verify KRX OpenAPI**로 API 응답을 확인합니다. 키 값은 출력되지 않습니다.
+4. **Update index universe and flow**가 평일 KST 18:35/19:35/20:35에 시세를 갱신합니다.
 
 ```bash
-python -m venv .venv
-.venv/bin/pip install -r scripts/requirements.txt
-.venv/bin/python scripts/collect.py --provider pykrx
+python scripts/collect-openapi.py --probe
+python scripts/collect-openapi.py
 ```
 
-- `KRX_ID`, `KRX_PW`: 본인 환경변수/GitHub Secrets에서만 설정.
-- KST 18시 이후 실행. 과거 구간 검증은 `--start YYYYMMDD --end YYYYMMDD` 사용.
-- 최소 1초 간격, 요청당 25초 제한. 이는 내부 보수 설정이며 공급자의 승인된 호출한도를 뜻하지 않습니다.
-- 일별 세부수급 금액/수량, 원종가, 시총/거래대금, KOSPI, Naver 수정주가 수집 코드.
-- `외국인` 분류만 사용하며 `기타외국인`을 임의 합산하지 않습니다.
-- `기타 기관` = 원천 `기타금융`. `기타법인`을 포함하지 않습니다.
-- 외국인 보유율 = `보유수량 / 상장주식수`. `한도소진률`과 혼용하지 않습니다. 공급자 날짜의 장개시 기준·전일 확정치 성격이므로 당일 종가 시점과 다릅니다.
-- 보유율/수량만 못 받으면 null·메타 노트로 표시. 핵심 가격/수급/시총/거래일 누락 시 전체 갱신 중단.
-- 인증 실패/빈 응답/중복/누락/역행 데이터 시 마지막 `market.json` 유지, 상태와 로그만 갱신.
-- **실제 인증 계정으로 성공한 통합 테스트는 아직 없습니다.** 라이브 테스트에서는 인증 없음과 빈 수급 응답을 확인했습니다.
+별칭 `KRX_OPEN_API_KEY`, `KRX_AUTH_KEY`도 지원하지만 canonical `KRX_API_KEY`가 우선합니다. 여러 값이 서로 다르면 상태 파일에 Secret 이름과 충돌 여부만 기록합니다. 키를 갱신할 때는 실제 선택된 Secret을 수정하세요.
+
+OpenAPI의 세부 수급·외국인 지분율·ETF PDF 미제공 항목은 마지막 관측치를 보존하거나 N/A로 표시합니다. API 오류를 웹 로그인으로 대체하지 않습니다. 정확한 연결 결과는 `dist/data/krx-openapi-status.json`에서 확인합니다. [운영 범위](docs/openapi-only.md)
 
 ## 데이터 스키마 v2
 
@@ -195,3 +193,4 @@ Apache ECharts는 차트 렌더러이며 데이터 공급원이 아닙니다. �
 - Actions: https://github.com/fort4dream17-cloud/-/actions
 
 현재 공개 저장소입니다. API 비밀키·로그인정보를 코드에 넣지 마세요. 실데이터 커밋은 누구나 읽을 수 있으므로 데이터 이용권한과 공개 범위를 먼저 확인하세요.
+

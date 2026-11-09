@@ -25,7 +25,11 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class Client:
     def __init__(self,key=None,transport=None,limit=600,pause=.15):
-        self.key=(key if key is not None else next((os.environ[k] for k in ('KRX_API_KEY','KRX_OPEN_API_KEY','KRX_AUTH_KEY') if os.environ.get(k)), '')).strip()
+        candidates={k:os.environ[k].strip() for k in ('KRX_API_KEY','KRX_OPEN_API_KEY','KRX_AUTH_KEY') if os.environ.get(k,'').strip()}
+        self.selected_secret='explicit' if key is not None else next(iter(candidates),None)
+        self.key=(key if key is not None else candidates.get(self.selected_secret,'')).strip()
+        self.key_diagnostics={'selected_secret':self.selected_secret,'configured_secret_names':list(candidates),
+                              'different_keys_present':len(set(candidates.values()))>1}
         self.transport=transport;self.limit=limit;self.pause=pause;self.calls=0;self.errors={};self.memo={};self.counts={}
     def get(self,service,date):
         if service not in SERVICES:raise APIError('허용되지 않은 API 서비스')
@@ -70,3 +74,4 @@ def kospi_close(rows):
     value=number(found[0].get('CLSPRC_IDX'))
     if value is None or value<=0:raise APIError('KOSPI 지수 값 미확보')
     return value
+
