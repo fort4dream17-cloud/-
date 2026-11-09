@@ -38,6 +38,24 @@ jobs:
               s.update(status='success',message='REST token issued; no investor data refresh in this verification')
           except APIError as e:
               s.update(status='failed',message=str(e))
+              # One bounded differential request to the same official origin.
+              import subprocess
+              from kiwoom_flow import http_failure
+              payload=json.dumps({'grant_type':'client_credentials','appkey':c.key,'secretkey':c.secret})
+              result=subprocess.run(['curl','--silent','--show-error','--max-time','30','--request','POST','--header','Content-Type: application/json;charset=UTF-8','--data-binary','@-','--write-out','\\n%{http_code}\\n%{content_type}','https://api.kiwoom.com/oauth2/token'],input=payload.encode(),capture_output=True)
+              if result.returncode:
+                  s['curl_comparison']={'status':'network_failed','exit_code':result.returncode}
+              else:
+                  raw,status,ctype=result.stdout.rsplit(b'\\n',2)
+                  if status==b'200':
+                      try:
+                          response=json.loads(raw)
+                          success=bool(response.get('token')) and response.get('return_code',0)==0
+                          if success:s.update(status='success',transport='curl',message='Token issued through curl; urllib transport rejected')
+                          else:s['curl_comparison']={'status':'failed','message':http_failure(200,raw,{'Content-Type':ctype.decode()},[c.key,c.secret])}
+                      except ValueError:s['curl_comparison']={'status':'invalid_response'}
+                  else:
+                      s['curl_comparison']={'status':'failed','message':http_failure(int(status),raw,{'Content-Type':ctype.decode()},[c.key,c.secret])}
           atomic('dist/data/kiwoom-connection.json',s)
           print(json.dumps(s,ensure_ascii=False))
           sys.exit(0 if s['status']=='success' else 1)
