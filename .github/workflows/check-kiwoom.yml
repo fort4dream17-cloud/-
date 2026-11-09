@@ -34,7 +34,7 @@ jobs:
           c=Client()
           s={'checked_at':now().isoformat(),'web_login':False,'configured':bool(c.key and c.secret),'phase':'token'}
           try:
-              c.authenticate()
+              raise APIError('Previous urllib token requests returned HTTP 400 HTML; comparing curl once')
               s.update(status='success',message='REST token issued; no investor data refresh in this verification')
           except APIError as e:
               s.update(status='failed',message=str(e))
@@ -42,11 +42,12 @@ jobs:
               import subprocess
               from kiwoom_flow import http_failure
               payload=json.dumps({'grant_type':'client_credentials','appkey':c.key,'secretkey':c.secret})
-              result=subprocess.run(['curl','--silent','--show-error','--max-time','30','--request','POST','--header','Content-Type: application/json;charset=UTF-8','--data-binary','@-','--write-out','\\n%{http_code}\\n%{content_type}','https://api.kiwoom.com/oauth2/token'],input=payload.encode(),capture_output=True)
+              result=subprocess.run(['curl','--silent','--show-error','--max-time','30','--request','POST','--header','Content-Type: application/json;charset=UTF-8','--data-binary','@-','--write-out','|KIWOOM_STATUS|%{http_code}|KIWOOM_TYPE|%{content_type}','https://api.kiwoom.com/oauth2/token'],input=payload.encode(),capture_output=True)
               if result.returncode:
                   s['curl_comparison']={'status':'network_failed','exit_code':result.returncode}
               else:
-                  raw,status,ctype=result.stdout.rsplit(b'\\n',2)
+                  raw,tail=result.stdout.rsplit(b'|KIWOOM_STATUS|',1)
+                  status,ctype=tail.split(b'|KIWOOM_TYPE|',1)
                   if status==b'200':
                       try:
                           response=json.loads(raw)
