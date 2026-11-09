@@ -1,6 +1,9 @@
 name: Update Kiwoom investor flows
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/update-kiwoom.yml", "scripts/kiwoom_flow.py"]
   workflow_run:
     workflows: ['Update index universe and flow']
     types: [completed]
@@ -11,16 +14,34 @@ concurrency:
   cancel-in-progress: false
 jobs:
   collect:
-    if: ${{ vars.KIWOOM_RUNNER_LABELS != '' }}
-    runs-on: ${{ fromJSON(vars.KIWOOM_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    runs-on: [self-hosted, Windows, kiwoom]
+    defaults:
+      run:
+        shell: cmd
+    env:
+      PYTHONUTF8: "1"
+      PYTHONPATH: ${{ runner.temp }}/kiwoom-python-deps
     timeout-minutes: 25
     steps:
+      - name: Prepare portable Git without changing PC settings
+        shell: python
+        run: |
+          import os,pathlib,shutil,urllib.request,zipfile,hashlib
+          if not shutil.which('git'):
+              root=pathlib.Path(os.environ['RUNNER_TEMP'])/'kiwoom-mingit'
+              root.mkdir(exist_ok=True)
+              archive=root/'mingit.zip'
+              urllib.request.urlretrieve('https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.4/MinGit-2.56.0.4-64-bit.zip',archive)
+              if hashlib.sha256(archive.read_bytes()).hexdigest()!='e3bf78351fe777fba47ddee5950082f8a98bb0f02604fdc7ba3ee2cb68ffa877':
+                  raise SystemExit('Git download checksum mismatch')
+              with zipfile.ZipFile(archive) as z:z.extractall(root)
+              with open(os.environ['GITHUB_PATH'],'a',encoding='utf-8') as f:f.write(str(root/'cmd')+'\n')
       - uses: actions/checkout@v4
         with: {ref: main, fetch-depth: 0}
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.11'}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - name: Install job-local timezone data
+        run: python -m pip install --disable-pip-version-check --target "%RUNNER_TEMP%\\kiwoom-python-deps" tzdata
       - name: Collect from registered-IP runner only
         id: api
         continue-on-error: true
@@ -32,16 +53,21 @@ jobs:
           KRX_AUTH_KEY: ${{ secrets.KRX_AUTH_KEY }}
         run: python scripts/kiwoom_flow.py
       - name: Publish validated flows or failure status
-        if: always()
-        shell: bash
+        if: always() && steps.api.outcome != 'skipped'
+        shell: python
         run: |
-          git config user.name 'flow-data-bot'
-          git config user.email 'flow-data-bot@users.noreply.github.com'
-          git add dist/data/index-market.json dist/data/market.json dist/data/index-status.json dist/data/status.json dist/data/kiwoom-status.json
-          if ! git diff --cached --quiet; then
-            git commit -m 'Refresh validated Kiwoom investor flows and availability'
-            git pull --rebase origin main
-            git push origin HEAD:main
-          fi
+          import subprocess
+          def git(*args):
+              return subprocess.run(['git',*args],check=True)
+          git('config','user.name','flow-data-bot')
+          git('config','user.email','flow-data-bot@users.noreply.github.com')
+          git('add','dist/data/index-market.json','dist/data/market.json','dist/data/index-status.json','dist/data/status.json','dist/data/kiwoom-status.json')
+          changed=subprocess.run(['git','diff','--cached','--quiet']).returncode
+          if changed==1:
+              git('commit','-m','Refresh validated Kiwoom investor flows')
+              git('pull','--rebase','origin','main')
+              git('push','origin','HEAD:main')
+          elif changed!=0:
+              raise SystemExit(changed)
       - if: steps.api.outcome == 'failure'
-        run: exit 1
+        run: exit /b 1

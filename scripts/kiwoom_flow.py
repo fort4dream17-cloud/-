@@ -90,7 +90,7 @@ class Client:
         if out and min(out)>start and h.get('cont-yn')=='Y':raise APIError('history pagination incomplete')
         return out
 
-def read(p):return json.loads(p.read_text())
+def read(p):return json.loads(p.read_text(encoding='utf-8'))
 def run(root=ROOT):
     data=root/'dist/data';state={'checked_at':now().isoformat(),'source':'Kiwoom REST ka10059','web_login':False,'market':'KRX','configured':bool(os.environ.get('KIWOOM_APP_KEY') and os.environ.get('KIWOOM_SECRET_KEY'))};client=Client()
     try:
