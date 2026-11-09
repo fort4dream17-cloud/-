@@ -1,6 +1,9 @@
 name: Verify Kiwoom REST connection
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/check-kiwoom.yml"]
 permissions:
   contents: write
 concurrency:
@@ -9,9 +12,12 @@ concurrency:
 jobs:
   verify:
     # Explicit checks may use a configured fixed-IP runner.
-    runs-on: ${{ fromJSON(vars.KIWOOM_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    runs-on: ${{ fromJSON(vars.KIWOOM_RUNNER_LABELS || '["self-hosted","Windows","kiwoom"]') }}
     timeout-minutes: 3
     steps:
+      - name: Confirm registered PC accepted the job
+        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        run: echo "PC runner connected"
       - uses: actions/checkout@v4
         with: {ref: main, fetch-depth: 0}
       - uses: actions/setup-python@v5
@@ -25,15 +31,20 @@ jobs:
         run: python scripts/check-kiwoom.py
       - name: Publish sanitized connection status
         if: always()
-        shell: bash
+        shell: python
         run: |
-          git config user.name 'flow-data-bot'
-          git config user.email 'flow-data-bot@users.noreply.github.com'
-          git add dist/data/kiwoom-connection.json
-          if ! git diff --cached --quiet; then
-            git commit -m 'Record sanitized Kiwoom REST connection result'
-            git pull --rebase origin main
-            git push origin HEAD:main
-          fi
+          import subprocess
+          def git(*args):
+              return subprocess.run(['git',*args],check=True)
+          git('config','user.name','flow-data-bot')
+          git('config','user.email','flow-data-bot@users.noreply.github.com')
+          git('add','dist/data/kiwoom-connection.json')
+          changed=subprocess.run(['git','diff','--cached','--quiet']).returncode
+          if changed==1:
+              git('commit','-m','Record sanitized Kiwoom REST connection result')
+              git('pull','--rebase','origin','main')
+              git('push','origin','HEAD:main')
+          elif changed!=0:
+              raise SystemExit(changed)
       - if: steps.api.outcome == 'failure'
         run: exit 1
