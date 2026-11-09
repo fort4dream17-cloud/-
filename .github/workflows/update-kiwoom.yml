@@ -53,6 +53,7 @@ jobs:
         id: api
         continue-on-error: true
         env:
+          KIWOOM_FLOW_CACHE: ${{ runner.workspace }}/../kiwoom-flow-cache
           PYTHONPATH: ${{ runner.temp }}/kiwoom-python-deps
           KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
           KIWOOM_SECRET_KEY: ${{ secrets.KIWOOM_SECRET_KEY }}

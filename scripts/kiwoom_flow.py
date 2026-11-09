@@ -33,7 +33,7 @@ def http_failure(status,raw,headers,secrets=()):
 
 class Client:
     def __init__(self):
-        self.key=os.environ.get('KIWOOM_APP_KEY','').strip();self.secret=os.environ.get('KIWOOM_SECRET_KEY','').strip();self.token=None;self.calls=0
+        self.key=os.environ.get('KIWOOM_APP_KEY','').strip();self.secret=os.environ.get('KIWOOM_SECRET_KEY','').strip();self.token=None;self.calls=0;self.cache_hits=0
     def post(self,path,body,headers=None):
         if path not in ('/oauth2/token','/api/dostk/stkinfo'):raise APIError('endpoint not allowed')
         if self.calls>=2500:raise APIError('request budget exceeded')
@@ -72,6 +72,19 @@ class Client:
         self.token=p.get('token')
         if not self.token:raise APIError('access token missing')
     def flows(self,code,end,start):
+        folder=os.environ.get('KIWOOM_FLOW_CACHE')
+        path=pathlib.Path(folder)/(code+'-'+end+'.json') if folder else None
+        if path and path.exists():
+            try:
+                cached=read(path)
+                age=(now()-datetime.fromisoformat(cached['fetched_at'])).total_seconds()
+                if cached.get('version')==1 and 0<=age<1800 and cached.get('start','9999')<=start:
+                    self.cache_hits+=1;return cached['flows']
+            except (ValueError,KeyError,OSError):pass
+        result=self._flows(code,end,start)
+        if path:atomic(path,{'version':1,'fetched_at':now().isoformat(),'start':start,'flows':result})
+        return result
+    def _flows(self,code,end,start):
         headers={'api-id':'ka10059','authorization':'Bearer '+self.token};out={};seen=set()
         for page in range(20):
             p,h=self.post('/api/dostk/stkinfo',{'dt':end,'stk_cd':code,'amt_qty_tp':'1','trde_tp':'0','unit_tp':'1'},headers)
@@ -147,6 +160,7 @@ def run(root=ROOT):
                     if qr is None:raise APIError('quote missing '+code+' '+d)
                     merged.append({'date':d,'code':code,'name':rows[0]['name'],'sector':rows[0]['sector'],'close':q[0],'volume':q[1],'benchmark':benchmark[d],'turnover':number(qr.get('ACC_TRDVAL'))/1e8,'marketcap':cap/1e8,'foreign_ownership':None,'flow_source':'Kiwoom REST ka10059',**f})
                 count+=1
+                if count%25==0:print('Validated collection progress:',count,'stocks; cache hits:',client.cache_hits,flush=True)
             meta={**old['meta'],'as_of':target,'fetched_at':now().isoformat(),'source':'KRX OpenAPI prices + Kiwoom REST investor flows (KRX market)','status':'unknown','price_basis':'raw','dividend_adjusted':False,'trading_dates':sorted(set(old['meta']['trading_dates'])|{d for d in benchmark if old['meta']['trading_dates'][0]<=d<=target}),'notes':['수급: 키움 REST ka10059, KRX 시장 기준. 백만원을 억원으로 변환; 화면은 십억원.','최근 수급은 확정 여부 미확인. 연기금등은 국민연금 단독이 아님.','외국인 보유율 신규 자료 미확보. ETF 체결액으로 해석하지 않음.']}
             meta.pop('reported_windows',None)
             result={'schema_version':2,'meta':meta,'rows':merged}
@@ -159,5 +173,5 @@ def run(root=ROOT):
         state.update(status='success',as_of=target,processed_count=count,overlap_checks=overlap)
     except Exception as e:
         state.update(status='failed',message=str(e)[:400] if isinstance(e,APIError) else 'validation/processing failure: '+type(e).__name__)
-    state['request_count']=client.calls;atomic(data/'kiwoom-status.json',state);print(json.dumps(state,ensure_ascii=False));return 0 if state['status']=='success' else 1
+    state['request_count']=client.calls;state['cache_hits']=client.cache_hits;atomic(data/'kiwoom-status.json',state);print(json.dumps(state,ensure_ascii=False));return 0 if state['status']=='success' else 1
 if __name__=='__main__':sys.exit(run())

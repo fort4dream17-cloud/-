@@ -27,7 +27,7 @@ class TestPublication(unittest.TestCase):
             client=self.client if hasattr(self,'client') else Client()
             client.authenticate=lambda:None
             client.flows=lambda *a:{'2026-11-06':{'foreign':1},'2026-11-05':{'foreign':1}}
-            with patch.object(m,'Client',return_value=client):self.assertEqual(m.run(root),1)
+            with patch.object(m,'Client',return_value=client),patch.object(m,'validate'):self.assertEqual(m.run(root),1)
             self.assertEqual((data/'index-market.json').read_bytes(),before)
             state=json.loads((data/'kiwoom-status.json').read_text());self.assertEqual(state['status'],'failed');self.assertIn('overlap mismatch',state['message'])
 
@@ -64,3 +64,15 @@ class TestCurlTransport(unittest.TestCase):
         with patch('kiwoom_flow.subprocess.run',side_effect=fake) as call:
             with self.assertRaisesRegex(APIError,'8050'):c.authenticate()
             self.assertEqual(call.call_count,1)
+
+class TestCache(unittest.TestCase):
+    def test_same_end_reuses_cache_and_older_start_refetches(self):
+        import tempfile,os
+        from unittest.mock import patch,Mock
+        with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'KIWOOM_FLOW_CACHE':tmp}):
+            c=Client();c._flows=Mock(return_value={'2026-11-06':{'foreign':1}})
+            c.flows('005930','20261106','2026-10-01')
+            c.flows('005930','20261106','2026-10-20')
+            self.assertEqual(c._flows.call_count,1);self.assertEqual(c.cache_hits,1)
+            c.flows('005930','20261106','2026-09-01')
+            self.assertEqual(c._flows.call_count,2)
