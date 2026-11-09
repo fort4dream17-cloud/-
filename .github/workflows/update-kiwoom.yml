@@ -20,7 +20,6 @@ jobs:
         shell: cmd
     env:
       PYTHONUTF8: "1"
-      PYTHONPATH: ${{ runner.temp }}/kiwoom-python-deps
     timeout-minutes: 25
     steps:
       - name: Prepare portable Git without changing PC settings
@@ -46,6 +45,7 @@ jobs:
         id: api
         continue-on-error: true
         env:
+          PYTHONPATH: ${{ runner.temp }}/kiwoom-python-deps
           KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
           KIWOOM_SECRET_KEY: ${{ secrets.KIWOOM_SECRET_KEY }}
           KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
