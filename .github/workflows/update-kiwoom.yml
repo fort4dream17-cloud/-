@@ -37,8 +37,16 @@ jobs:
               with open(os.environ['GITHUB_PATH'],'a',encoding='utf-8') as f:f.write(str(root/'cmd')+'\n')
       - uses: actions/checkout@v4
         with: {ref: main, fetch-depth: 0}
-      - uses: actions/setup-node@v4
-        with: {node-version: '22'}
+      - name: Use runner-bundled Node for data validation
+        shell: python
+        run: |
+          import os,pathlib,shutil
+          if not shutil.which('node'):
+              root=pathlib.Path(os.environ['RUNNER_TEMP']).parents[1]
+              candidates=[root/'externals'/version/'bin'/'node.exe' for version in ['node24','node20']]
+              node=next((p for p in candidates if p.is_file()),None)
+              if node is None:raise SystemExit('Runner-bundled Node missing')
+              with open(os.environ['GITHUB_PATH'],'a',encoding='utf-8') as f:f.write(str(node.parent)+'\n')
       - name: Install job-local timezone data
         run: python -m pip install --disable-pip-version-check --target "%RUNNER_TEMP%\\kiwoom-python-deps" tzdata
       - name: Collect from registered-IP runner only
