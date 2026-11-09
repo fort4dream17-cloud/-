@@ -91,6 +91,15 @@ class Client:
         return out
 
 def read(p):return json.loads(p.read_text(encoding='utf-8'))
+def validate(root,result,filename):
+    with tempfile.TemporaryDirectory() as tmp:
+        candidate=pathlib.Path(tmp)/'dataset.json';candidate.write_text(json.dumps(result),encoding='utf-8')
+        check=subprocess.run(['node',str(root/'scripts/validate.mjs'),str(candidate)],capture_output=True,text=True,encoding='utf-8',errors='replace')
+    if check.returncode:
+        lines=check.stderr.splitlines()
+        detail=next((l for l in lines if l.startswith(('Error:','TypeError:','RangeError:'))),'Node validator exited '+str(check.returncode))
+        raise APIError(filename+': '+detail[:300])
+
 def run(root=ROOT):
     data=root/'dist/data';state={'checked_at':now().isoformat(),'source':'Kiwoom REST ka10059','web_login':False,'market':'KRX','configured':bool(os.environ.get('KIWOOM_APP_KEY') and os.environ.get('KIWOOM_SECRET_KEY'))};client=Client()
     try:
@@ -103,6 +112,10 @@ def run(root=ROOT):
         prepared=[];count=0;overlap=0
         for filename in ['index-market.json','market.json']:
             old=read(data/filename);bycode={}
+            state['scope']=filename
+            state['input_meta']={k:old['meta'].get(k) for k in ['unit','price_basis','data_kind','as_of']}
+            validate(root,old,filename+' (existing)')
+
             for r in old['rows']:bycode.setdefault(r['code'],[]).append(r)
             merged=[]
             for code,rows in sorted(bycode.items()):
@@ -137,10 +150,9 @@ def run(root=ROOT):
             meta={**old['meta'],'as_of':target,'fetched_at':now().isoformat(),'source':'KRX OpenAPI prices + Kiwoom REST investor flows (KRX market)','status':'unknown','price_basis':'raw','dividend_adjusted':False,'trading_dates':sorted(set(old['meta']['trading_dates'])|{d for d in benchmark if old['meta']['trading_dates'][0]<=d<=target}),'notes':['수급: 키움 REST ka10059, KRX 시장 기준. 백만원을 억원으로 변환; 화면은 십억원.','최근 수급은 확정 여부 미확인. 연기금등은 국민연금 단독이 아님.','외국인 보유율 신규 자료 미확보. ETF 체결액으로 해석하지 않음.']}
             meta.pop('reported_windows',None)
             result={'schema_version':2,'meta':meta,'rows':merged}
-            with tempfile.TemporaryDirectory() as tmp:
-                candidate=pathlib.Path(tmp)/'dataset.json';candidate.write_text(json.dumps(result),encoding='utf-8')
-                subprocess.run(['node',str(root/'scripts/validate.mjs'),str(candidate)],check=True,capture_output=True)
+            validate(root,result,filename)
             prepared.append((filename,result))
+            state['validated_scopes']=[name for name,_ in prepared]
         for filename,result in prepared:
             atomic(data/filename,result)
             atomic(data/('index-status.json' if filename.startswith('index-') else 'status.json'),{'status':'success','as_of':target,'last_success_at':now().isoformat(),'message':'키움 REST 세부 수급 + KRX OpenAPI 가격 갱신','web_login':False,'openapi_mode':False})
