@@ -1,5 +1,5 @@
 """Read KODEX publicly disclosed PDFs without login. Partial universe, no stock trade inference."""
-import json,pathlib,urllib.request,urllib.error,re,time,math
+import json,pathlib,urllib.request,urllib.error,re,time,math,sys
 from datetime import datetime,timedelta,timezone
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 BASE='https://www.samsungfund.com'
@@ -14,9 +14,15 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*a,**k):return None
 def get(path):
     if not path.startswith('/api/v1/kodex/'):raise ValueError('unapproved endpoint')
-    time.sleep(.4)
     req=urllib.request.Request(BASE+path,headers={'Accept':'application/json','User-Agent':'CoverageFlowMonitor/1.0 public-disclosure-reader'})
-    with urllib.request.build_opener(NoRedirect).open(req,timeout=15) as r:return json.load(r)
+    for attempt in range(3):
+        time.sleep(1)
+        try:
+            with urllib.request.build_opener(NoRedirect).open(req,timeout=15) as r:return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code not in (429,500,502,503,504) or attempt==2:raise
+            time.sleep(5*(attempt+1))
+
 def parse_pdf(payload,date,stock_codes):
     p=payload['pdf'];d=datetime.strptime(str(p['gijunYMD']),'%Y%m%d').date().isoformat()
     if d!=date:raise ValueError('PDF date mismatch')
@@ -68,12 +74,12 @@ def main(root=ROOT):
                 if consecutive>=8:break
             if (success+len(failed))%20==0:print('PDF collected',success,'failed',len(failed),flush=True)
         state.update(status='success' if success==len(selected) else 'partial',success_count=success,failed_codes=failed,failed_reasons=reasons,attempted_count=success+len(failed),unattempted_count=len(selected)-success-len(failed))
-    except Exception as e:state.update(status='failed',message='Public disclosure collection: '+(str(e)[:160] if isinstance(e,ValueError) else type(e).__name__),success_count=0)
+    except Exception as e:state.update(status='failed',message='Public disclosure collection: '+(str(e)[:160] if isinstance(e,ValueError) else type(e).__name__+(' '+str(e.code) if isinstance(e,urllib.error.HTTPError) else '')),success_count=0)
     current={c:f for c,f in funds.items() if c in known}
     reverse={}
     for c,f in current.items():
         for r in f['holdings']:reverse.setdefault(r['code'],{'name':r['name'],'etfs':[]})['etfs'].append({'etf_code':c,'weight_pct':r['weight_pct'],'as_of':f['as_of']})
     matching=sum(f['as_of']==target for f in current.values())
     state['matching_date_count']=matching;state['coverage_pct']=matching/len(known)*100 if known else None
-    save(data/'etf-holdings.json',{'meta':state,'funds':current,'stocks':reverse});save(data/'etf-holdings-status.json',state);print(json.dumps(state,ensure_ascii=False))
-if __name__=='__main__':main()
+    save(data/'etf-holdings.json',{'meta':state,'funds':current,'stocks':reverse});save(data/'etf-holdings-status.json',state);print(json.dumps(state,ensure_ascii=False));return state
+if __name__=='__main__':sys.exit(1 if main()['status']=='failed' else 0)
