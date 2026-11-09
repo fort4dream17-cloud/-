@@ -23,3 +23,18 @@ class TestPdf(unittest.TestCase):
   with self.assertRaises(ValueError):h.parse_pdf(self.payload(),'2026-11-09',{'005930'})
   p=self.payload();p['pdf']['totalCnt']=200
   with self.assertRaises(ValueError):h.parse_pdf(p,'2026-11-06',{'005930'})
+
+class TestIssuerIntegration(unittest.TestCase):
+ def test_collector_uses_official_endpoints_and_publishes_dated_reverse_mapping(self):
+  import tempfile,json
+  from unittest.mock import patch
+  with tempfile.TemporaryDirectory() as tmp:
+   root=pathlib.Path(tmp);data=root/'dist/data';data.mkdir(parents=True)
+   (data/'etf-openapi.json').write_text(json.dumps({'meta':{'as_of':'2026-11-06'},'funds':[{'code':'069500','name':'KODEX 200','aum':1000}]}))
+   (data/'openapi-quotes.json').write_text(json.dumps({'stocks':{'005930':{}}}))
+   def get(path):
+    self.assertTrue(path.startswith('/api/v1/kodex/'))
+    if '/product.do?' in path:return [{'totalCnt':'1','stkTicker':'069500','fId':'2ETF01','typeLnm':'국내주식'}]
+    return TestPdf().payload()
+   with patch.object(h,'get',side_effect=get):h.main(root)
+   result=json.loads((data/'etf-holdings.json').read_text());self.assertEqual(result['meta']['matching_date_count'],1);self.assertEqual(result['stocks']['005930']['etfs'][0]['etf_code'],'069500');self.assertFalse(result['funds']['069500']['pressure_available'])

@@ -40,13 +40,14 @@ def main(root=ROOT):
     try:
         total=None
         for page in range(1,31):
-            rows=get('/product.do?ordrColm=NAV&ordrSort=DESC&pageNo='+str(page)+'&srchTerm=w')
+            rows=get('/api/v1/kodex/product.do?ordrColm=NAV&ordrSort=DESC&pageNo='+str(page)+'&srchTerm=w')
             if not isinstance(rows,list) or not rows:break
             total=int(rows[0]['totalCnt'])
             before=len(products)
             for r in rows:products[r['stkTicker']]=r
             if len(products)>=total:break
             if len(products)==before:raise ValueError('master pagination repeated')
+        state['master_count']=len(products);state['master_expected']=total
         if total is None or len(products)!=total:raise ValueError('master incomplete')
         selected=[r for c,r in products.items() if c in known and r.get('typeLnm')=='국내주식']
         if not selected:raise ValueError('no eligible domestic-equity ETFs')
@@ -56,7 +57,7 @@ def main(root=ROOT):
             c=item['stkTicker'];fid=item['fId']
             if not re.fullmatch(r'[A-Za-z0-9]+',fid):raise ValueError('invalid product id')
             try:
-                p=parse_pdf(get('/product-pdf/'+fid+'.do?gijunYMD='+target.replace('-','.')),target,stocks)
+                p=parse_pdf(get('/api/v1/kodex/product-pdf/'+fid+'.do?gijunYMD='+target.replace('-','.')),target,stocks)
                 funds[c]={**p,'code':c,'name':known[c]['name'],'source_url':BASE+'/etf/product/view.do?id='+fid,'fetched_at':stamp(),'manager':'삼성자산운용','index':known[c].get('index'),'aum':known[c].get('aum'),'pressure_available':False}
                 success+=1;consecutive=0
             except (ValueError,KeyError,TypeError,urllib.error.URLError,TimeoutError):
@@ -64,7 +65,7 @@ def main(root=ROOT):
                 if consecutive>=8:break
             if (success+len(failed))%20==0:print('PDF collected',success,'failed',len(failed),flush=True)
         state.update(status='success' if success==len(selected) else 'partial',success_count=success,failed_codes=failed,attempted_count=success+len(failed),unattempted_count=len(selected)-success-len(failed))
-    except Exception as e:state.update(status='failed',message='Public disclosure collection: '+type(e).__name__,success_count=0)
+    except Exception as e:state.update(status='failed',message='Public disclosure collection: '+(str(e)[:160] if isinstance(e,ValueError) else type(e).__name__),success_count=0)
     current={c:f for c,f in funds.items() if c in known}
     reverse={}
     for c,f in current.items():
