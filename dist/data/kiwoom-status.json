@@ -1,1 +1,1 @@
-{"checked_at": "2026-11-09T14:04:21.347534+09:00", "source": "Kiwoom REST ka10059", "web_login": false, "market": "KRX", "configured": true, "status": "failed", "message": "HTTP 400", "request_count": 1}
+{"checked_at": "2026-11-09T14:16:06.419013+09:00", "source": "Kiwoom REST ka10059", "web_login": false, "market": "KRX", "configured": true, "status": "failed", "message": "Connection verification failed; automatic token retries paused. Run Verify Kiwoom REST connection after correcting the configuration.", "request_count": 0}
