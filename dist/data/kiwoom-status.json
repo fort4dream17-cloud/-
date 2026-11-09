@@ -1,1 +1,1 @@
-{"checked_at": "2026-11-09T15:05:51.762505+09:00", "source": "Kiwoom REST ka10059", "web_login": false, "market": "KRX", "configured": true, "authentication": "success", "status": "failed", "message": "validation/processing failure: CalledProcessError", "request_count": 362}
+{"checked_at": "2026-11-09T15:10:03.568325+09:00", "source": "Kiwoom REST ka10059", "web_login": false, "market": "KRX", "configured": true, "authentication": "success", "status": "failed", "message": "validation/processing failure: CalledProcessError", "request_count": 362}
