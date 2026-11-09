@@ -48,3 +48,17 @@ class TestTradingCalendar(unittest.TestCase):
   f={**days[-1]['funds'][0],'quote_date':dates[-1]}
   result=b.build({'meta':{'as_of':dates[-1]},'funds':[f]},days,set(dates)-{dates[1]})
   self.assertEqual(result['meta']['sessions'],21);self.assertEqual(result['funds'][0]['adv20'],100);self.assertEqual(result['funds'][0]['returns']['20'],0)
+
+class TestCooldown(unittest.TestCase):
+ def test_cooldown_preserves_data_without_requests(self):
+  import tempfile,json
+  from unittest.mock import patch
+  with tempfile.TemporaryDirectory() as tmp:
+   root=pathlib.Path(tmp);data=root/'dist/data';data.mkdir(parents=True)
+   (data/'etf-openapi.json').write_text(json.dumps({'meta':{'as_of':'2026-11-06'},'funds':[{'code':'069500'}]}))
+   (data/'openapi-quotes.json').write_text(json.dumps({'stocks':{'005930':{}}}))
+   (data/'etf-holdings.json').write_text(json.dumps({'meta':{'retry_after':'2099-01-01T00:00:00+00:00'},'funds':{'069500':{'as_of':'2026-11-06','holdings':[]}}}))
+   with patch.object(h,'get') as get:
+    state=h.main(root)
+    get.assert_not_called()
+   self.assertTrue(state['source_rate_limited']);self.assertEqual(state['matching_date_count'],1)

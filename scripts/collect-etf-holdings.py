@@ -16,11 +16,11 @@ def get(path):
     if not path.startswith('/api/v1/kodex/'):raise ValueError('unapproved endpoint')
     req=urllib.request.Request(BASE+path,headers={'Accept':'application/json','User-Agent':'CoverageFlowMonitor/1.0 public-disclosure-reader'})
     for attempt in range(3):
-        time.sleep(1)
+        time.sleep(4)
         try:
             with urllib.request.build_opener(NoRedirect).open(req,timeout=15) as r:return json.load(r)
         except urllib.error.HTTPError as e:
-            if e.code not in (429,500,502,503,504) or attempt==2:raise
+            if e.code not in (500,502,503,504) or attempt==2:raise
             time.sleep(5*(attempt+1))
 
 def parse_pdf(payload,date,stock_codes):
@@ -44,6 +44,13 @@ def main(root=ROOT):
     old=read(data/'etf-holdings.json') if (data/'etf-holdings.json').exists() else {'funds':{}}
     funds=dict(old.get('funds',{}));products={};failed=[];reasons={}
     try:
+        prior=old.get('meta',{})
+        retry=prior.get('retry_after')
+        if not retry and '429' in prior.get('message',''):
+            retry=(datetime.fromisoformat(prior['checked_at'])+timedelta(minutes=30)).isoformat()
+        if retry and datetime.fromisoformat(retry)>datetime.now(timezone.utc):
+            state.update(source_rate_limited=True,retry_after=retry)
+            raise ValueError('HTTP 429 cooldown: no provider requests sent')
         total=None
         for page in range(1,31):
             rows=get('/api/v1/kodex/product.do?ordrColm=NAV&ordrSort=DESC&pageNo='+str(page)+'&srchTerm=w')
@@ -69,12 +76,18 @@ def main(root=ROOT):
                 funds[c]={**p,'code':c,'name':known[c]['name'],'source_url':BASE+'/etf/product/view.do?id='+fid,'fetched_at':stamp(),'manager':'삼성자산운용','index':known[c].get('index'),'aum':known[c].get('aum'),'pressure_available':False}
                 success+=1;consecutive=0
             except (ValueError,KeyError,TypeError,urllib.error.URLError,TimeoutError) as e:
+                if isinstance(e,urllib.error.HTTPError) and e.code==429:raise
                 reasons[c]=(str(e)[:120] if isinstance(e,ValueError) else type(e).__name__+(' '+str(e.code) if isinstance(e,urllib.error.HTTPError) else ''))
                 failed.append(c);consecutive+=1
                 if consecutive>=8:break
             if (success+len(failed))%20==0:print('PDF collected',success,'failed',len(failed),flush=True)
         state.update(status='success' if success==len(selected) else 'partial',success_count=success,failed_codes=failed,failed_reasons=reasons,attempted_count=success+len(failed),unattempted_count=len(selected)-success-len(failed))
-    except Exception as e:state.update(status='failed',message='Public disclosure collection: '+(str(e)[:160] if isinstance(e,ValueError) else type(e).__name__+(' '+str(e.code) if isinstance(e,urllib.error.HTTPError) else '')),success_count=0)
+    except Exception as e:
+        if isinstance(e,urllib.error.HTTPError) and e.code==429:
+            delay=e.headers.get('Retry-After','1800') if e.headers else '1800'
+            seconds=max(1800,int(delay)) if str(delay).isdigit() else 1800
+            state.update(source_rate_limited=True,retry_after=(datetime.now(timezone.utc)+timedelta(seconds=seconds)).isoformat())
+        state.update(status='failed',message='Public disclosure collection: '+(str(e)[:160] if isinstance(e,ValueError) else type(e).__name__+(' '+str(e.code) if isinstance(e,urllib.error.HTTPError) else '')),success_count=0)
     current={c:f for c,f in funds.items() if c in known}
     reverse={}
     for c,f in current.items():

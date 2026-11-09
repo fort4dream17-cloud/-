@@ -36,7 +36,7 @@ export function mountEtfCatalog(root){
   const list=filterCatalog(rows,$('etfCatalogQuery').value,$('etfCatalogSort').value,$('etfHoldingsOnly').checked,holdings?.funds||{});const pages=Math.max(1,Math.ceil(list.length/50));page=Math.min(page,pages-1);
   $('etfCatalog').innerHTML=table(list.slice(page*50,page*50+50));$('etfCatalogCount').textContent=`${list.length.toLocaleString()}개 / 전체 ${rows.length.toLocaleString()}개 · ${page+1} / ${pages}페이지`;$('etfCatalogPrev').disabled=page===0;$('etfCatalogNext').disabled=page>=pages-1;$('etfCatalogCsv').disabled=!list.length;
   const hm=holdings?.meta;const count=rows.filter(f=>holdings?.funds?.[f.code]?.as_of===f.quote_date).length;
-  $('etfCatalogStatus').textContent=rows.length?`시세 기준 ${api.meta.as_of} · 출처 KRX OpenAPI · 갱신 ${api.meta.fetched_at||'미확보'} · 동일 날짜 구성종목 ${count} / ${rows.length}개 (${(count/rows.length*100).toFixed(1)}%) · ${hm?.scope||'운용사 구성종목 수집 대기'}${hm?.status==='failed'?' · 최근 구성종목 수집 실패: 보존된 자료의 기준일 확인':''}`:'ETF 시세 자료 미확보 · N/A';
+  $('etfCatalogStatus').textContent=rows.length?`시세 기준 ${api.meta.as_of} · 출처 KRX OpenAPI · 갱신 ${api.meta.fetched_at||'미확보'} · 동일 날짜 구성종목 ${count} / ${rows.length}개 (${(count/rows.length*100).toFixed(1)}%) · ${hm?.scope||'운용사 구성종목 수집 대기'}${hm?.source_rate_limited?' · 운용사 요청 제한(429): 자동 조회 일시 중지 · 재시도 가능 '+hm.retry_after:hm?.status==='failed'?' · 최근 구성종목 수집 실패: 보존된 자료의 기준일 확인':''}`:'ETF 시세 자료 미확보 · N/A';
  }
  function select(code){
   const f=rows.find(x=>x.code===code);if(!f)return;selected=code;$('etfQuoteDetail').hidden=false;$('etfQuoteName').textContent=f.name+' · '+code;
