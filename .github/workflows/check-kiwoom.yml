@@ -12,11 +12,11 @@ concurrency:
 jobs:
   verify:
     # Explicit checks may use a configured fixed-IP runner.
-    runs-on: ${{ fromJSON(vars.KIWOOM_RUNNER_LABELS || '["self-hosted","Windows","kiwoom"]') }}
+    runs-on: [self-hosted, Windows, kiwoom]
     timeout-minutes: 3
     steps:
       - name: Confirm registered PC accepted the job
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        shell: powershell
         run: echo "PC runner connected"
       - uses: actions/checkout@v4
         with: {ref: main, fetch-depth: 0}
