@@ -1,0 +1,26 @@
+name: Diagnose flow schema
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/diagnose-flow-schema.yml"]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Inspect price basis without API credentials
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {validateDataset} from './dist/engine.js';
+          for(const name of ['index-market','market']){
+            const d=JSON.parse(readFileSync('dist/data/'+name+'.json','utf8'));
+            console.log(name,JSON.stringify({meta:d.meta,rows:d.rows.length,stocks:new Set(d.rows.map(r=>r.code)).size,first:d.rows[0],adjustedRows:d.rows.filter(r=>Number.isFinite(r.adjusted_close)).length}));
+            const changed=structuredClone(d);changed.meta.price_basis='raw';changed.meta.dividend_adjusted=false;delete changed.meta.reported_windows;
+            try{validateDataset(changed);console.log(name,'raw conversion validates')}catch(e){console.log(name,'raw conversion rejected:',e.message)}
+          }
+          JS
