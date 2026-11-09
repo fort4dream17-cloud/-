@@ -1,0 +1,47 @@
+name: Update Kiwoom investor flows
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Update index universe and flow']
+    types: [completed]
+permissions:
+  contents: write
+concurrency:
+  group: kiwoom-flow-update
+  cancel-in-progress: false
+jobs:
+  collect:
+    if: ${{ vars.KIWOOM_RUNNER_LABELS != '' }}
+    runs-on: ${{ fromJSON(vars.KIWOOM_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Collect from registered-IP runner only
+        id: api
+        continue-on-error: true
+        env:
+          KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
+          KIWOOM_SECRET_KEY: ${{ secrets.KIWOOM_SECRET_KEY }}
+          KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
+          KRX_OPEN_API_KEY: ${{ secrets.KRX_OPEN_API_KEY }}
+          KRX_AUTH_KEY: ${{ secrets.KRX_AUTH_KEY }}
+        run: python scripts/kiwoom_flow.py
+      - name: Publish validated flows or failure status
+        if: always()
+        shell: bash
+        run: |
+          git config user.name 'flow-data-bot'
+          git config user.email 'flow-data-bot@users.noreply.github.com'
+          git add dist/data/index-market.json dist/data/market.json dist/data/index-status.json dist/data/status.json dist/data/kiwoom-status.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh validated Kiwoom investor flows and availability'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+      - if: steps.api.outcome == 'failure'
+        run: exit 1

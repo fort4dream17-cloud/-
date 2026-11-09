@@ -36,16 +36,6 @@ jobs:
           KRX_OPEN_API_KEY: ${{ secrets.KRX_OPEN_API_KEY }}
           KRX_AUTH_KEY: ${{ secrets.KRX_AUTH_KEY }}
         run: python scripts/collect-openapi.py
-      - name: Refresh investor flows through Kiwoom REST
-        id: kiwoom
-        continue-on-error: true
-        env:
-          KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
-          KIWOOM_SECRET_KEY: ${{ secrets.KIWOOM_SECRET_KEY }}
-          KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
-          KRX_OPEN_API_KEY: ${{ secrets.KRX_OPEN_API_KEY }}
-          KRX_AUTH_KEY: ${{ secrets.KRX_AUTH_KEY }}
-        run: python scripts/kiwoom_flow.py
       - name: Publish API results before independent disclosure refresh
         if: always()
         run: |
@@ -74,7 +64,7 @@ jobs:
             git pull --rebase origin main
             git push origin HEAD:main
           fi
-      - if: steps.api.outcome == 'failure' || steps.kiwoom.outcome == 'failure'
+      - if: steps.api.outcome == 'failure'
         run: exit 1
 
 

@@ -1,5 +1,5 @@
 """Kiwoom REST read-only flow collection. No web login or order endpoints."""
-import json,os,pathlib,time,urllib.request,urllib.error,subprocess,sys,tempfile,re,math
+import json,os,pathlib,time,subprocess,sys,tempfile,re,math
 from datetime import datetime
 from collect import atomic,now,collection_end
 from krx_openapi import Client as KRXClient, code as krx_code
@@ -31,25 +31,40 @@ def http_failure(status,raw,headers,secrets=()):
         detail['markers']=[m for m in markers if m.lower() in text.lower()]
     return 'HTTP response '+json.dumps(detail,ensure_ascii=False)
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self,*args,**kwargs):return None
 class Client:
     def __init__(self):
         self.key=os.environ.get('KIWOOM_APP_KEY','').strip();self.secret=os.environ.get('KIWOOM_SECRET_KEY','').strip();self.token=None;self.calls=0
     def post(self,path,body,headers=None):
+        if path not in ('/oauth2/token','/api/dostk/stkinfo'):raise APIError('endpoint not allowed')
         if self.calls>=2500:raise APIError('request budget exceeded')
         self.calls+=1;time.sleep(.3)
-        req=urllib.request.Request('https://api.kiwoom.com'+path,data=json.dumps(body).encode(),headers={'Content-Type':'application/json;charset=UTF-8',**(headers or {})},method='POST')
-        try:
-            with urllib.request.build_opener(NoRedirect).open(req,timeout=30) as r:payload=json.load(r);h=r.headers
-        except urllib.error.HTTPError as e:
-            raise APIError(http_failure(e.code,e.read(16384),e.headers,[self.key,self.secret,self.token])) from None
-        except Exception:raise APIError('network/response failure') from None
+        # curl works with the provider gateway; urllib was rejected with HTML 400.
+        # Credentials and bearer headers travel over stdin, never process arguments/logs.
+        config='url = '+json.dumps('https://api.kiwoom.com'+path)+'\nrequest = "POST"\n'
+        for k,v in {'Content-Type':'application/json;charset=UTF-8',**(headers or {})}.items():
+            config+='header = '+json.dumps(k+': '+v)+'\n'
+        config+='data = '+json.dumps(json.dumps(body,ensure_ascii=True))+'\n'
+        marker=b'|KIWOOM_HTTP_STATUS|'
+        with tempfile.TemporaryDirectory() as tmp:
+            headerfile=pathlib.Path(tmp)/'headers'
+            try:
+                result=subprocess.run(['curl','--config','-','--silent','--show-error','--max-time','30','--max-filesize','10485760','--proto','=https','--dump-header',str(headerfile),'--write-out',marker.decode()+'%{http_code}'],input=config.encode(),capture_output=True,timeout=35)
+            except (OSError,subprocess.TimeoutExpired):raise APIError('curl unavailable or request timed out') from None
+            if result.returncode:raise APIError('curl network failure '+str(result.returncode))
+            try:raw,status=result.stdout.rsplit(marker,1);status=int(status)
+            except ValueError:raise APIError('invalid transport status') from None
+            h={}
+            for line in headerfile.read_text(errors='replace').splitlines():
+                if line.startswith('HTTP/'):h={}
+                elif ':' in line:
+                    key,value=line.split(':',1);h[key.lower()]=value.strip()
+        if status>=300:
+            raise APIError(http_failure(status,raw,{'Content-Type':h.get('content-type','')},[self.key,self.secret,self.token]))
+        try:payload=json.loads(raw)
+        except ValueError:raise APIError('non-JSON provider response') from None
+        if not isinstance(payload,dict):raise APIError('invalid provider response shape')
         if str(payload.get('return_code',0))!='0':
-            msg=str(payload.get('return_msg',''))
-            for value in [self.key,self.secret,self.token]:
-                if value:msg=msg.replace(value,'[redacted]')
-            raise APIError('provider '+str(payload.get('return_code'))+': '+msg[:250])
+            raise APIError(http_failure(status,raw,{'Content-Type':h.get('content-type','')},[self.key,self.secret,self.token]))
         return payload,h
     def authenticate(self):
         if not self.key or not self.secret:raise APIError('KIWOOM_APP_KEY / KIWOOM_SECRET_KEY missing')
@@ -122,8 +137,9 @@ def run(root=ROOT):
             meta={**old['meta'],'as_of':target,'fetched_at':now().isoformat(),'source':'KRX OpenAPI prices + Kiwoom REST investor flows (KRX market)','status':'unknown','price_basis':'raw','dividend_adjusted':False,'trading_dates':sorted(set(old['meta']['trading_dates'])|{d for d in benchmark if old['meta']['trading_dates'][0]<=d<=target}),'notes':['수급: 키움 REST ka10059, KRX 시장 기준. 백만원을 억원으로 변환; 화면은 십억원.','최근 수급은 확정 여부 미확인. 연기금등은 국민연금 단독이 아님.','외국인 보유율 신규 자료 미확보. ETF 체결액으로 해석하지 않음.']}
             meta.pop('reported_windows',None)
             result={'schema_version':2,'meta':meta,'rows':merged}
-            with tempfile.NamedTemporaryFile('w',suffix='.json') as f:
-                json.dump(result,f);f.flush();subprocess.run(['node',str(root/'scripts/validate.mjs'),f.name],check=True,capture_output=True)
+            with tempfile.TemporaryDirectory() as tmp:
+                candidate=pathlib.Path(tmp)/'dataset.json';candidate.write_text(json.dumps(result),encoding='utf-8')
+                subprocess.run(['node',str(root/'scripts/validate.mjs'),str(candidate)],check=True,capture_output=True)
             prepared.append((filename,result))
         for filename,result in prepared:
             atomic(data/filename,result)

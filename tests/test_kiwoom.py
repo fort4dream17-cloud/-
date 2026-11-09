@@ -41,3 +41,26 @@ class TestDiagnostics(unittest.TestCase):
         from kiwoom_flow import http_failure
         value=http_failure(400,b'<title>Request Rejected</title>hidden secret',{'Content-Type':'text/html'})
         self.assertIn('Request Rejected',value);self.assertNotIn('hidden secret',value)
+
+class TestCurlTransport(unittest.TestCase):
+    def test_token_only_in_stdin_and_no_redirect(self):
+        from unittest.mock import patch
+        import subprocess,json
+        c=Client();c.key='test-app-key';c.secret='test-secret'
+        def fake(args,**kw):
+            self.assertNotIn(c.key,' '.join(args));self.assertNotIn(c.secret,' '.join(args));self.assertNotIn('--location',args)
+            self.assertIn(c.key,kw['input'].decode());self.assertIn(c.secret,kw['input'].decode())
+            pathlib.Path(args[args.index('--dump-header')+1]).write_text('HTTP/1.1 200 OK\nContent-Type: application/json\n')
+            return subprocess.CompletedProcess(args,0,b'{"return_code":0,"token":"sample-token"}|KIWOOM_HTTP_STATUS|200',b'')
+        with patch('kiwoom_flow.subprocess.run',side_effect=fake):c.authenticate()
+        self.assertEqual(c.token,'sample-token');self.assertEqual(c.calls,1)
+    def test_ip_rejection_does_not_retry(self):
+        from unittest.mock import patch
+        import subprocess
+        c=Client();c.key='key';c.secret='secret'
+        def fake(args,**kw):
+            pathlib.Path(args[args.index('--dump-header')+1]).write_text('HTTP/1.1 200 OK\nContent-Type: application/json\n')
+            return subprocess.CompletedProcess(args,0,b'{"return_code":3,"return_msg":"8050: IP not registered"}|KIWOOM_HTTP_STATUS|200',b'')
+        with patch('kiwoom_flow.subprocess.run',side_effect=fake) as call:
+            with self.assertRaisesRegex(APIError,'8050'):c.authenticate()
+            self.assertEqual(call.call_count,1)

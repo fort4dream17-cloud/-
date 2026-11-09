@@ -1,18 +1,15 @@
 name: Verify Kiwoom REST connection
-# Record bounded response diagnostics; never publish response bodies.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/check-kiwoom.yml']
 permissions:
   contents: write
 concurrency:
-  group: kiwoom-connection-check
+  group: kiwoom-flow-update
   cancel-in-progress: false
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Explicit checks may use a configured fixed-IP runner.
+    runs-on: ${{ fromJSON(vars.KIWOOM_RUNNER_LABELS || '["ubuntu-latest"]') }}
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
@@ -25,44 +22,10 @@ jobs:
         env:
           KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
           KIWOOM_SECRET_KEY: ${{ secrets.KIWOOM_SECRET_KEY }}
-        run: |
-          python - <<'PY'
-          import sys,json
-          sys.path.insert(0,'scripts')
-          from kiwoom_flow import Client,APIError
-          from collect import atomic,now
-          c=Client()
-          s={'checked_at':now().isoformat(),'web_login':False,'configured':bool(c.key and c.secret),'phase':'token'}
-          try:
-              raise APIError('Previous urllib token requests returned HTTP 400 HTML; comparing curl once')
-              s.update(status='success',message='REST token issued; no investor data refresh in this verification')
-          except APIError as e:
-              s.update(status='failed',message=str(e))
-              # One bounded differential request to the same official origin.
-              import subprocess
-              from kiwoom_flow import http_failure
-              payload=json.dumps({'grant_type':'client_credentials','appkey':c.key,'secretkey':c.secret})
-              result=subprocess.run(['curl','--silent','--show-error','--max-time','30','--request','POST','--header','Content-Type: application/json;charset=UTF-8','--data-binary','@-','--write-out','|KIWOOM_STATUS|%{http_code}|KIWOOM_TYPE|%{content_type}','https://api.kiwoom.com/oauth2/token'],input=payload.encode(),capture_output=True)
-              if result.returncode:
-                  s['curl_comparison']={'status':'network_failed','exit_code':result.returncode}
-              else:
-                  raw,tail=result.stdout.rsplit(b'|KIWOOM_STATUS|',1)
-                  status,ctype=tail.split(b'|KIWOOM_TYPE|',1)
-                  if status==b'200':
-                      try:
-                          response=json.loads(raw)
-                          success=bool(response.get('token')) and response.get('return_code',0)==0
-                          if success:s.update(status='success',transport='curl',message='Token issued through curl; urllib transport rejected')
-                          else:s['curl_comparison']={'status':'failed','message':http_failure(200,raw,{'Content-Type':ctype.decode()},[c.key,c.secret])}
-                      except ValueError:s['curl_comparison']={'status':'invalid_response'}
-                  else:
-                      s['curl_comparison']={'status':'failed','message':http_failure(int(status),raw,{'Content-Type':ctype.decode()},[c.key,c.secret])}
-          atomic('dist/data/kiwoom-connection.json',s)
-          print(json.dumps(s,ensure_ascii=False))
-          sys.exit(0 if s['status']=='success' else 1)
-          PY
+        run: python scripts/check-kiwoom.py
       - name: Publish sanitized connection status
         if: always()
+        shell: bash
         run: |
           git config user.name 'flow-data-bot'
           git config user.email 'flow-data-bot@users.noreply.github.com'
