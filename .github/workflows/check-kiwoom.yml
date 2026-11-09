@@ -16,21 +16,39 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Confirm registered PC accepted the job
-        shell: powershell
+        shell: cmd
         run: echo "PC runner connected"
+      - name: Prepare portable Git without changing PC settings
+        shell: python
+        run: |
+          import os,pathlib,shutil,urllib.request,zipfile,hashlib
+          if not shutil.which('git'):
+              root=pathlib.Path(os.environ['RUNNER_TEMP'])/'kiwoom-mingit'
+              root.mkdir(exist_ok=True)
+              archive=root/'mingit.zip'
+              urllib.request.urlretrieve('https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.4/MinGit-2.56.0.4-64-bit.zip',archive)
+              if hashlib.sha256(archive.read_bytes()).hexdigest()!='e3bf78351fe777fba47ddee5950082f8a98bb0f02604fdc7ba3ee2cb68ffa877':
+                  raise SystemExit('Git download checksum mismatch')
+              with zipfile.ZipFile(archive) as z:z.extractall(root)
+              with open(os.environ['GITHUB_PATH'],'a',encoding='utf-8') as f:f.write(str(root/'cmd')+'\n')
       - uses: actions/checkout@v4
         with: {ref: main, fetch-depth: 0}
       - uses: actions/setup-python@v5
         with: {python-version: '3.11'}
+      - name: Install timezone data in job-local directory
+        shell: cmd
+        run: python -m pip install --disable-pip-version-check --target "%RUNNER_TEMP%\\kiwoom-python-deps" tzdata
       - name: Check token once without web login
         id: api
         continue-on-error: true
         env:
+          PYTHONPATH: ${{ runner.temp }}\\kiwoom-python-deps
           KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
           KIWOOM_SECRET_KEY: ${{ secrets.KIWOOM_SECRET_KEY }}
+        shell: cmd
         run: python scripts/check-kiwoom.py
       - name: Publish sanitized connection status
-        if: always()
+        if: always() && steps.api.outcome != 'skipped'
         shell: python
         run: |
           import subprocess
@@ -47,4 +65,5 @@ jobs:
           elif changed!=0:
               raise SystemExit(changed)
       - if: steps.api.outcome == 'failure'
-        run: exit 1
+        shell: cmd
+        run: exit /b 1
