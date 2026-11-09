@@ -1,0 +1,24 @@
+name: Clear pre-rotation API runs
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/clear-pre-rotation-runs.yml']
+permissions:
+  actions: write
+  contents: read
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only observed pre-rotation runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for run_id in 42559231150 42559231188; do
+            state=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.status')
+            if [ "$state" != 'completed' ]; then
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel"
+            fi
+          done
