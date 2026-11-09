@@ -11,3 +11,22 @@ main{max-width:1500px}.detail{max-width:1160px;margin-left:auto;margin-right:aut
 .signal-cell{width:168px;min-width:168px;max-width:168px}.compact-signals{width:152px;line-height:18px}.signal-line{display:flex;align-items:center;gap:3px;height:21px;white-space:nowrap;overflow:hidden}.signal-line .badge{font-size:9px;margin:0;padding:1px 4px;line-height:16px}.signal-line.secondary{font-size:10px;color:#657f91;height:17px}.flow-status{font-size:10px;margin:4px 8px;line-height:1.5}.passive-guide summary{font-weight:700;cursor:pointer}.passive-guide summary span{font-size:11px;font-weight:400;margin-left:8px}.passive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:18px}.passive-guide p{line-height:1.65;font-size:12px}.passive-guide a{color:#35738e}.chart-head label{font-size:10px;white-space:nowrap}.chart-head select{font-size:10px;padding:5px}@media(max-width:800px){.passive-grid{grid-template-columns:1fr}}
 
 .passive-panel{padding:22px;margin:20px 0}.passive-panel h2{font-size:18px;margin:0 0 7px}.passive-panel h3{font-size:14px;margin:18px 0 12px}.passive-panel .section-head{align-items:flex-start;gap:16px}.passive-panel .section-head p{margin:5px 0 0}.etf-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:15px 0}.etf-kpis>div{padding:12px 14px;border:1px solid #e3e9ef;border-radius:8px;background:#fafcfe}.etf-kpis span{display:block;font-size:11px;color:#738396;margin-bottom:7px}.etf-kpis strong{font-size:19px}.etf-rank-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.etf-rank-grid article{min-width:0}.etf-rank-table{font-size:11px;min-width:690px}.etf-rank-table th,.etf-rank-table td{padding:10px 8px;white-space:normal}.etf-rank-table td:first-child{min-width:100px}.etf-rank-table td:nth-child(6){min-width:110px;max-width:145px;font-size:10px}.etf-rank-table td:last-child{max-width:105px;font-size:10px}.etf-rank-table small,.etf-fund-table small{display:block;font-size:10px;margin-top:5px}.etf-rank-table tbody tr[data-passive-code]{cursor:pointer}.etf-rank-table tbody tr:hover{background:#eff5fa}.etf-detail{border-top:1px solid #dce5ed;margin-top:25px;padding-top:10px}.etf-fund-table{min-width:1350px;font-size:11px}.etf-fund-table td{white-space:normal;max-width:250px}.etf-method{margin-top:17px;border-top:1px solid #e4eaf0;padding-top:15px;font-size:12px}.etf-method summary{cursor:pointer;font-weight:600;color:#304a5c}.etf-method li{line-height:1.8;margin:7px 0}.etf-import{font-size:11px;max-width:245px}.etf-import input{display:block;margin-top:5px;max-width:240px;font-size:10px}.etf-history-chart{height:290px;max-width:1160px;color:#758699;font-size:12px;display:flex;align-items:center;justify-content:center}.passive-panel .pos{color:#d84b4b}.passive-panel .neg{color:#327ac7}.passive-panel button.active{background:#25495d;color:white}.passive-panel .toolbar{margin:16px 0}.passive-panel .table-scroll{max-width:100%;overflow:auto}#etfState{line-height:1.8}#etfCatalog{max-height:450px;overflow:auto}@media(max-width:1100px){.etf-rank-grid{grid-template-columns:1fr}}
+
+/* ETF market catalog: dense desktop research layout. */
+#etfMarketPanel{margin:18px 0;padding:16px;background:var(--surface,#fff);border:1px solid var(--border,#dce4ef);border-radius:10px;min-width:0}
+#etfMarketPanel .toolbar input[type=search]{min-width:240px}
+#etfMarketPanel .toolbar label{display:flex;align-items:center;gap:6px}
+#etfMarketPanel input[type=checkbox]{width:auto}
+#etfMarketPanel table{font-size:12px;width:100%;border-collapse:collapse}
+#etfMarketPanel th{white-space:nowrap;position:sticky;top:0;background:var(--surface,#fff);z-index:1}
+#etfMarketPanel td{padding:9px 10px;white-space:nowrap}
+#etfMarketPanel td:first-child{white-space:normal;min-width:210px;max-width:280px}
+#etfMarketPanel td small{display:block;font-size:11px;color:var(--muted,#64748b)}
+#etfMarketPanel tr[data-etf-quote]{cursor:pointer}
+#etfMarketPanel tr[data-etf-quote]:hover,#etfMarketPanel tr[data-etf-quote]:focus{background:#f0f6ff;outline:1px solid #b5cafa}
+.etf-catalog-scroll{max-height:540px;overflow:auto}
+.etf-holdings-scroll{max-height:420px;overflow:auto}
+#etfQuoteDetail{margin:16px 0;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #dce4ef}
+#etfQuoteChart{height:280px;max-width:900px}
+.etf-pressure{margin:18px 0;border:1px solid #dce4ef;border-radius:8px;padding:12px}
+.etf-pressure>summary{cursor:pointer;font-weight:600;color:#475569}
