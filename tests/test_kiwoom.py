@@ -76,3 +76,13 @@ class TestCache(unittest.TestCase):
             self.assertEqual(c._flows.call_count,1);self.assertEqual(c.cache_hits,1)
             c.flows('005930','20261106','2026-09-01')
             self.assertEqual(c._flows.call_count,2)
+
+class TestTransientProviderFailure(unittest.TestCase):
+    def test_business_error_retries_bounded_but_auth_does_not(self):
+        from unittest.mock import Mock,patch
+        c=Client();c._post=Mock(side_effect=[APIError('1631'),({'ok':True},{})])
+        with patch('kiwoom_flow.time.sleep'):self.assertEqual(c.post('/api/dostk/stkinfo',{})[0],{'ok':True})
+        self.assertEqual(c._post.call_count,2)
+        c._post=Mock(side_effect=APIError('8050'))
+        with self.assertRaises(APIError):c.post('/oauth2/token',{})
+        self.assertEqual(c._post.call_count,1)

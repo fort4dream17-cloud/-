@@ -35,6 +35,12 @@ class Client:
     def __init__(self):
         self.key=os.environ.get('KIWOOM_APP_KEY','').strip();self.secret=os.environ.get('KIWOOM_SECRET_KEY','').strip();self.token=None;self.calls=0;self.cache_hits=0
     def post(self,path,body,headers=None):
+        for attempt in range(3):
+            try:return self._post(path,body,headers)
+            except APIError as e:
+                if path!='/api/dostk/stkinfo' or '1631' not in str(e) or attempt==2:raise
+                time.sleep(2*(attempt+1))
+    def _post(self,path,body,headers=None):
         if path not in ('/oauth2/token','/api/dostk/stkinfo'):raise APIError('endpoint not allowed')
         if self.calls>=2500:raise APIError('request budget exceeded')
         self.calls+=1;time.sleep(.3)
@@ -133,6 +139,7 @@ def run(root=ROOT):
             merged=[]
             for code,rows in sorted(bycode.items()):
                 rows.sort(key=lambda r:r['date']);last=rows[-1]['date'];start=rows[max(0,len(rows)-25)]['date']
+                state['current_code']=code
                 flows=client.flows(code,end,start)
                 if target not in flows:raise APIError('latest flow missing for '+code)
                 prices={q[0]:q[1:] for q in history['stocks'].get(code,[])}
@@ -163,6 +170,8 @@ def run(root=ROOT):
                 if count%25==0:print('Validated collection progress:',count,'stocks; cache hits:',client.cache_hits,flush=True)
             meta={**old['meta'],'as_of':target,'fetched_at':now().isoformat(),'source':'KRX OpenAPI prices + Kiwoom REST investor flows (KRX market)','status':'unknown','price_basis':'raw','dividend_adjusted':False,'trading_dates':sorted(set(old['meta']['trading_dates'])|{d for d in benchmark if old['meta']['trading_dates'][0]<=d<=target}),'notes':['수급: 키움 REST ka10059, KRX 시장 기준. 백만원을 억원으로 변환; 화면은 십억원.','최근 수급은 확정 여부 미확인. 연기금등은 국민연금 단독이 아님.','외국인 보유율 신규 자료 미확보. ETF 체결액으로 해석하지 않음.']}
             meta.pop('reported_windows',None)
+            # close is the stored original close; never label new raw quotes as adjusted.
+            for row in merged:row['adjusted_close']=None
             result={'schema_version':2,'meta':meta,'rows':merged}
             validate(root,result,filename)
             prepared.append((filename,result))
