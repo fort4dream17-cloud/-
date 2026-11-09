@@ -1,1 +1,1 @@
-{"status": "api_limited", "openapi_mode": true, "as_of": "2026-10-29", "price_as_of": "2026-11-06", "message": "OpenAPI 전용 · 웹 로그인 중지. 투자자별 세부 수급·외국인 지분율·지수 편입종목은 API 미제공으로 직전 관측일 유지.", "checked_at": "2026-11-09T13:11:18.829927+09:00", "web_login": false}
+{"status": "api_limited", "openapi_mode": true, "as_of": "2026-10-29", "price_as_of": "2026-11-06", "message": "OpenAPI 전용 · 웹 로그인 중지. 투자자별 세부 수급·외국인 지분율·지수 편입종목은 API 미제공으로 직전 관측일 유지.", "checked_at": "2026-11-09T14:04:21.185307+09:00", "web_login": false}
