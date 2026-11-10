@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {estimatePressure} from '../dist/etf-pressure.js';
+const dates=Array.from({length:21},(_,i)=>`2026-10-${String(i+1).padStart(2,'0')}`),date=dates.at(-1);
+function fixture(){return [{meta:{as_of:date},funds:[{code:'069500'}]},{meta:{as_of:date},funds:[{code:'069500',name:'ETF',quote_date:date,units:110,nav:100}],history:{'069500':dates.map((d,i)=>[d,100,100,10000,i===20?110:100,100,10])}},{funds:{'069500':{as_of:date,holdings:[{code:'005930',name:'삼성전자',weight_pct:8}]}}},[{meta:{data_kind:'real',unit:'KRW_100M'},rows:dates.map(d=>({date:d,code:'005930',turnover:2,financial:1}))}]];}
+test('weight proxy, ADV excludes signal day, units conversion, no rebalance fabrication',()=>{let f=fixture();f[3][0].rows.at(-1).turnover=99;const r=estimatePressure(...f).rows[0];assert.equal(r.net,80);assert.equal(r.adv,2e8);assert.equal(r.financial,50);assert.equal(r.sell,0);assert.equal(r.rebalance,undefined);});
+test('missing session makes ADV N/A, amount remains available',()=>{const f=fixture();f[3][0].rows.splice(3,1);const r=estimatePressure(...f).rows[0];assert.equal(r.adv,null);assert.equal(r.net,80);});
+test('stale/future/duplicate holdings and corporate action anomalies excluded',()=>{for(const kind of ['stale','future','duplicate','units']){const f=fixture();if(kind==='stale')f[2].funds['069500'].as_of='2026-09-01';if(kind==='future')f[2].funds['069500'].as_of='2026-10-22';if(kind==='duplicate')f[2].funds['069500'].holdings.push(f[2].funds['069500'].holdings[0]);if(kind==='units')f[1].funds[0].units=200;const r=estimatePressure(...f);assert.equal(r.used,0);assert.equal(r.excluded.length,1);}});
+test('unconnected is excluded, zero observed flow remains zero',()=>{const f=fixture();f[0].funds.push({code:'123456'});f[1].funds[0].units=100;const r=estimatePressure(...f);assert.equal(r.total,2);assert.equal(r.used,1);assert.equal(r.rows[0].net,0);});

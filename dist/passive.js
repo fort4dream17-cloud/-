@@ -1,3 +1,4 @@
+import {mountPressure} from './etf-pressure.js';
 import {mountEtfCatalog} from './etf-catalog.js';
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -17,10 +18,10 @@ async function mount(){
  const root=document.getElementById('passivePanel');if(!root)return;
  let etfMonitor=null,etfHoldings=null,catalogView=null,apiEtf=null,data=null,status=null,capabilities=null,history={days:[]},selected=null,period=60,chart=null,localFunds=null,shards=new Map(),sequence=0,backtest=null;
  const $=id=>root.querySelector('#'+id),color=v=>finite(v)?v>0?'pos':v<0?'neg':'':'';
- root.innerHTML=`<div class="section-head"><div><h2>ETF 모니터 · 기계적 수급</h2><p class="muted">국내 ETF 시세·공개 구성종목 · 종목별 매매 압력은 검증 자료가 있을 때만 제공 · 금액 억원</p></div><button id="etfExport">현재 랭킹 CSV ↓</button></div>
+ root.innerHTML=`<div class="section-head"><div><h2>ETF 모니터 · 기계적 수급</h2><p class="muted">국내 ETF 시세·공개 구성종목 · 종목별 좌수변화 유발 수요를 편입비중으로 부분 추정 · 금액 억원</p></div><button id="etfExport">현재 랭킹 CSV ↓</button></div>
  <div id="etfState" class="notice" role="status">ETF 데이터 확인 중</div>
  <div class="etf-kpis" id="etfKpis"></div>
- <div id="etfMarketPanel"></div><details class="etf-pressure" id="etfPressureSection"><summary id="etfPressureSummary">종목별 패시브 압력 · 추가 데이터 필요</summary><div class="toolbar"><input type="search" id="etfSearch" aria-label="ETF 영향 종목 검색" placeholder="종목명 / 코드"><select id="etfSector" aria-label="ETF 영향 업종"><option>전체 업종</option></select><label>조회 범위 <select id="etfScope" aria-label="ETF 랭킹 범위"><option value="all">국내 현물 전체</option><option value="coverage">현재 커버리지</option></select></label><span class="spacer"></span><label class="etf-import">승인된 ETF JSON 불러오기<input id="etfImport" type="file" accept=".json" aria-label="승인된 ETF JSON 불러오기"></label></div>
+ <div id="etfPartialPressure"></div><details class="etf-method"><summary>ETF 전체 시세 · 구성종목 원자료 조회</summary><div id="etfMarketPanel"></div></details><details class="etf-pressure" id="etfPressureSection"><summary id="etfPressureSummary">종목별 패시브 압력 · 추가 데이터 필요</summary><div class="toolbar"><input type="search" id="etfSearch" aria-label="ETF 영향 종목 검색" placeholder="종목명 / 코드"><select id="etfSector" aria-label="ETF 영향 업종"><option>전체 업종</option></select><label>조회 범위 <select id="etfScope" aria-label="ETF 랭킹 범위"><option value="all">국내 현물 전체</option><option value="coverage">현재 커버리지</option></select></label><span class="spacer"></span><label class="etf-import">승인된 ETF JSON 불러오기<input id="etfImport" type="file" accept=".json" aria-label="승인된 ETF JSON 불러오기"></label></div>
  <p class="muted" id="etfBasis">ADV20은 신호일을 제외한 직전 20거래일 일평균 거래대금입니다. RVOL은 당일 거래량 / 직전 20일 평균 거래량입니다. 미확보는 N/A입니다.</p>
  <div class="etf-rank-grid"><article><h3>매수 압력 상위 25</h3><div class="table-scroll" id="etfBuy"></div></article><article><h3>매도 압력 상위 25</h3><div class="table-scroll" id="etfSell"></div></article></div>
  <div id="etfDetail" class="etf-detail"><h3 id="etfStock">종목을 선택하세요</h3><p id="etfDetailState" class="muted">추정에 포함된 ETF와 계산 불가 항목을 함께 표시합니다.</p><div id="etfStockKpis" class="etf-kpis"></div><div id="etfCross" class="etf-cross"></div>
@@ -30,13 +31,14 @@ async function mount(){
  <details class="etf-method"><summary>백테스트 · 시점보존 이력</summary><div id="etfBacktest">N/A · 검증 가능한 과거 신호·당시 편입 ETF 목록·수정주가가 필요합니다.</div></details>
 `;
  catalogView=mountEtfCatalog($('etfMarketPanel'));
+ const pressureView=mountPressure($('etfPartialPressure'));
  async function json(url){const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('자료 미확보');return response.json();}
  function relevant(){let rows=data?.stocks||[];if($('etfScope').value==='coverage'){const codes=new Set([...document.querySelectorAll('#rows [data-code]')].map(r=>r.dataset.code));rows=rows.filter(r=>codes.has(r.code));}return rows;}
  const cell=(v,fmt=passiveMoney)=>`<span class="${color(v)}">${fmt(v)}</span>`;
  function rankTable(rows){return `<table class="etf-rank-table"><thead><tr><th>종목명</th><th>추정 순압력<br>억원</th><th>ADV20<br>대비 %</th><th>당일<br>RVOL</th><th>금융투자<br>/ ADV %</th><th>주요 기여 ETF</th><th>신뢰도</th></tr></thead><tbody>${rows.length?rows.map(r=>`<tr tabindex="0" data-passive-code="${r.code}" aria-label="${esc(r.name)} ETF 영향 상세"><td><b>${esc(r.name)}</b><small class="muted">${esc(r.sector||'미분류')} · ${r.code}</small></td><td>${cell(r.net)}${r.partial?'<small class="muted">부분 집계</small>':''}</td><td>${cell(r.adv_pct,passivePct)}</td><td>${finite(r.rvol)?r.rvol.toFixed(2)+'×':'N/A'}</td><td>${cell(r.financial_adv_pct,passivePct)}</td><td>${(r.top_etfs||[]).map(e=>esc(e.name)).join('<br>')||'N/A'}</td><td class="muted">${esc(r.confidence)}</td></tr>`).join(''):'<tr><td colspan="7">'+(data?'해당 방향의 계산 가능 종목 없음':'N/A · 전체 PDF·좌수 데이터 연결 대기')+'</td></tr>'}</tbody></table>`;}
  function render(){
   const meta=data?.meta,universe=apiEtf?.meta?.count??meta?.universe_count??capabilities?.etf_master_count;
-  let text=data?`기준 ${meta.as_of} · ${meta.available_at||'갱신시각 미확보'} · ${meta.status==='partial'?'부분 수집':'수집 완료'} · 실제 매매시점 미확인`:apiEtf?`ETF 시세 ${apiEtf.meta.count}개 연결 · 구성종목은 연결된 운용사 범위만 제공 · 종목별 패시브 매매 압력은 아직 계산하지 않습니다.`:status?.message||'ETF 시세 자료 미확보 · N/A';
+  let text=data?`기준 ${meta.as_of} · ${meta.available_at||'갱신시각 미확보'} · ${meta.status==='partial'?'부분 수집':'수집 완료'} · 실제 매매시점 미확인`:apiEtf?`ETF 시세 ${apiEtf.meta.count}개 연결 · 구성종목은 연결된 운용사 범위만 제공 · 종목별 압력은 확보 편입비중과 좌수 변화로 부분 추정 · 확정 체결액 아님.`:status?.message||'ETF 시세 자료 미확보 · N/A';
   if(status?.status==='failed')text+=' · 최근 수집 실패, 직전 자료 기준일 확인 필요';
   if(status?.openapi_mode)text+=` · ETF 시세 기준 ${apiEtf?.meta?.as_of||'N/A'} · 갱신 ${apiEtf?.meta?.fetched_at||status.checked_at||'N/A'}`;
   if(!status?.openapi_mode&&!meta&&capabilities)text+=` · 출처 KRX · 표본 기준일 ${capabilities.as_of||'N/A'} · 접근 확인 ${capabilities.checked_at||'N/A'}`;
@@ -71,6 +73,8 @@ async function mount(){
  if(results[1].status==='fulfilled')status=results[1].value;if(results[2].status==='fulfilled')capabilities=results[2].value;if(results[3].status==='fulfilled')history=results[3].value;if(results[4].status==='fulfilled')backtest=results[4].value;
  if(results[5].status==='fulfilled')apiEtf=results[5].value;
  if(results[6].status==='fulfilled')etfMonitor=results[6].value;if(results[7].status==='fulfilled')etfHoldings=results[7].value;
+ const flowSources=await Promise.allSettled(['index-market.json','market.json'].map(f=>json('data/'+f)));
+ pressureView.update(apiEtf,etfMonitor,etfHoldings,flowSources.filter(r=>r.status==='fulfilled').map(r=>r.value));
  if(status?.openapi_mode){data=null;history={days:[]};render();}
  else if(results[0].status==='fulfilled'){try{setData(results[0].value);}catch(e){$('etfState').textContent='ETF 데이터 검증 실패 · '+e.message;}}else render();
  if(backtest?.groups?.length)$('etfBacktest').innerHTML='<p>다음 거래일 종가 진입 · 중복 신호 제거 · 거래비용 미반영 · 매수 추천 성과 아님</p><table><thead><tr><th>방향 / 기간</th><th>발생 횟수</th><th>평균 초과수익률</th><th>중앙값</th><th>방향 적중률</th><th>상대자산 최대낙폭</th></tr></thead><tbody>'+backtest.groups.map(g=>`<tr><td>${g.direction===1?'매수 압력':'매도 압력'} / ${g.horizon}일</td><td>${g.n}</td><td>${passivePct(g.mean)}</td><td>${passivePct(g.median)}</td><td>${passivePct(g.win_pct)}</td><td>${passivePct(g.max_drawdown)}</td></tr>`).join('')+'</tbody></table>';
