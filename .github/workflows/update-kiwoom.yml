@@ -1,6 +1,9 @@
 name: Update Kiwoom investor flows
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '45 9-14 * * 1-5'
+    - cron: '25 23 * * 0-4'
   push:
     branches: [main]
     paths: [".github/workflows/update-kiwoom.yml", "scripts/kiwoom_flow.py"]
@@ -80,3 +83,4 @@ jobs:
               raise SystemExit(changed)
       - if: steps.api.outcome == 'failure'
         run: exit /b 1
+

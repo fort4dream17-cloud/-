@@ -101,7 +101,11 @@ def run(root,client,end,probe=False):
         message='OpenAPI 전용 · 웹 로그인 중지. 투자자별 세부 수급·외국인 지분율·지수 편입종목은 API 미제공으로 직전 관측일 유지.'
         for scope,file in [('index','index-status.json'),('legacy','status.json')]:
             past=read(data/('index-market.json' if scope=='index' else 'market.json'))
-            atomic(data/file,{'status':'api_limited','openapi_mode':True,'as_of':past.get('meta',{}).get('as_of'),'price_as_of':prices.get('as_of'),'message':message,'checked_at':now().isoformat(),'web_login':False})
+            flow_meta=past.get('meta',{});flow_date=flow_meta.get('as_of')
+            flow_message=message
+            if 'Kiwoom' in flow_meta.get('source',''):
+                flow_message='가격은 KRX OpenAPI, 세부 수급은 등록된 PC의 키움 REST에서 별도 갱신합니다. 수급 '+str(flow_date)+' / 가격 '+str(prices.get('as_of'))+'. 실행기 대기·실패는 수집 상태 진단을 확인하세요.'
+            atomic(data/file,{'status':'api_limited','openapi_mode':True,'as_of':flow_date,'price_as_of':prices.get('as_of'),'message':flow_message,'checked_at':now().isoformat(),'web_login':False})
         atomic(data/'etf-status.json',{'status':'api_limited','openapi_mode':True,'as_of':etfs.get('as_of'),'universe_count':etfs.get('count'),
             'checked_at':now().isoformat(),'message':'OpenAPI 전용 · ETF 시세/NAV/순자산/발행좌수만 갱신. PDF·CU 구성수량 미제공으로 종목별 패시브 압력은 N/A.'+(' API 오류: '+etfs['message'] if etfs['status']=='failed' else ''),'web_login':False})
     report['request_count']=client.calls
@@ -116,4 +120,5 @@ if __name__=='__main__':
     except Exception as exc:
         atomic(ROOT/'dist/data/krx-openapi-status.json',{'status':'failed','mode':'openapi_only','web_login':False,'checked_at':now().isoformat(),'message':'OpenAPI 처리 실패: '+type(exc).__name__})
         print('OpenAPI processing failed:',type(exc).__name__);raise SystemExit(1)
+
 

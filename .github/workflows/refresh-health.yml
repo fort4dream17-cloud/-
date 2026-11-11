@@ -1,0 +1,41 @@
+name: Monitor flow refresh availability
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['scripts/refresh-health.py', '.github/workflows/refresh-health.yml']
+  schedule:
+    - cron: '10,40 8-15 * * 1-5'
+    - cron: '20 23 * * 0-4'
+  workflow_run:
+    workflows: ['Update index universe and flow', 'Update Kiwoom investor flows']
+    types: [completed]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: flow-refresh-health
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Diagnose queued runner independently of the PC
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/refresh-health.py
+      - name: Publish diagnostic state only
+        run: |
+          git config user.name 'flow-data-bot'
+          git config user.email 'flow-data-bot@users.noreply.github.com'
+          git add dist/data/refresh-health.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update independent flow refresh health'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
