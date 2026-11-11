@@ -1,1 +1,1 @@
-{"status": "disabled", "web_login": false, "checked_at": "2026-11-11T02:16:10.099185+09:00", "message": "KRX 웹 로그인 영구 중지. OpenAPI AUTH_KEY만 사용합니다.", "automatic_retry": false}
+{"status": "disabled", "web_login": false, "checked_at": "2026-11-11T16:41:10.697970+09:00", "message": "KRX 웹 로그인 영구 중지. OpenAPI AUTH_KEY만 사용합니다.", "automatic_retry": false}

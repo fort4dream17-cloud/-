@@ -1,1 +1,1 @@
-{"status": "api_limited", "openapi_mode": true, "as_of": "2026-11-06", "price_as_of": "2026-11-09", "message": "OpenAPI 전용 · 웹 로그인 중지. 투자자별 세부 수급·외국인 지분율·지수 편입종목은 API 미제공으로 직전 관측일 유지.", "checked_at": "2026-11-11T02:16:10.060688+09:00", "web_login": false}
+{"status": "api_limited", "openapi_mode": true, "as_of": "2026-11-06", "price_as_of": "2026-11-10", "message": "가격은 KRX OpenAPI, 세부 수급은 등록된 PC의 키움 REST에서 별도 갱신합니다. 수급 2026-11-06 / 가격 2026-11-10. 실행기 대기·실패는 수집 상태 진단을 확인하세요.", "checked_at": "2026-11-11T16:41:10.658641+09:00", "web_login": false}
