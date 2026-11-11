@@ -1,0 +1,1 @@
+{"checked_at": "2026-11-11T07:39:57.434012+00:00", "status": "stale", "message": "수급 기준일이 가격 기준일보다 뒤처짐", "flow_as_of": "2026-11-06", "price_as_of": "2026-11-09", "run_status": "pending", "conclusion": null, "queued_or_run_age_minutes": 0, "run_url": "https://github.com/fort4dream17-cloud/-/actions/runs/42981127470", "pc_required": true, "web_login": false}
