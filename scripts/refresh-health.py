@@ -6,10 +6,13 @@ def read(p):
     try:return json.loads(p.read_text(encoding='utf-8'))
     except (ValueError,OSError):return {}
 def diagnose(flow,price,runs,checked):
-    latest=next((r for r in runs if r.get('event')!='pull_request'),{})
+    relevant=[r for r in runs if r.get('event')!='pull_request']
+    # A newer concurrency-pending run may hide an older runner-queued blocker.
+    latest=next((r for r in relevant if r.get('status') in ('queued','in_progress')),relevant[0] if relevant else {})
     state='current' if flow and price and flow>=price else 'stale'
     message='가격 기준일까지 수급 관측 완료' if state=='current' else '수급 기준일이 가격 기준일보다 뒤처짐'
     if latest.get('status')=='queued':state='waiting_runner';message='등록된 PC 실행기 배정 대기 · PC 전원/실행기 연결 상태 확인 필요'
+    elif latest.get('status')=='pending':state='waiting_previous';message='이전 수급 작업 종료 대기 · PC 실행기 대기 작업이 있는지 확인 필요'
     elif latest.get('status')=='in_progress':state='collecting';message='키움 수급 수집 실행 중 · 검증 완료 전 직전 자료 유지'
     elif latest.get('conclusion') in ('failure','timed_out','cancelled') and state!='current':state='failed';message='최근 수급 작업 실패/중단 · 직전 자료 유지'
     age=None
