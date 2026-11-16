@@ -42,6 +42,7 @@ async function mount(){
   if(status?.status==='failed')text+=' · 최근 수집 실패, 직전 자료 기준일 확인 필요';
   if(status?.openapi_mode)text+=` · ETF 시세 기준 ${apiEtf?.meta?.as_of||'N/A'} · 갱신 ${apiEtf?.meta?.fetched_at||status.checked_at||'N/A'}`;
   if(!status?.openapi_mode&&!meta&&capabilities)text+=` · 출처 KRX · 표본 기준일 ${capabilities.as_of||'N/A'} · 접근 확인 ${capabilities.checked_at||'N/A'}`;
+  if(status?.paused)text='ETF 갱신 잠정 중지 · 보존된 자료만 표시 · '+text;
   $('etfState').textContent=text;
   const sample=capabilities?.pdf_probe?.filter(r=>r.ok).length;
   $('etfKpis').innerHTML=[['국내 ETF 전체',universe??'N/A'],['동일 날짜 구성종목',etfHoldings?.meta?`${etfHoldings.meta.matching_date_count} / ${universe}`:meta?`${meta.pdf_success_count} / ${meta.universe_count}`:'N/A'],['구성종목 연결률',finite(etfHoldings?.meta?.coverage_pct)?etfHoldings.meta.coverage_pct.toFixed(1)+'%':finite(meta?.pdf_success_pct)?meta.pdf_success_pct.toFixed(1)+'%':'N/A'],[status?.openapi_mode?'연결 방식':'표본 접근 시험',status?.openapi_mode?'OpenAPI · 로그인 없음':sample!==undefined?`${sample}회 성공 / ${capabilities.pdf_probe.length}회`:'N/A']].map(([k,v])=>`<div><span>${k}</span><strong>${v}</strong></div>`).join('');

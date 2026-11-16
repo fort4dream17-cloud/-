@@ -87,16 +87,19 @@ def refresh_etfs(root,client,end):
 def run(root,client,end,probe=False):
     data=root/'dist/data';data.mkdir(parents=True,exist_ok=True)
     report={'checked_at':now().isoformat(),'mode':'openapi_only','web_login':False,'configured':bool(client.key),'key_configuration':client.key_diagnostics,'services':[],'components':{}}
+    paused=read(root/'config/refresh-control.json',{}).get('etf_paused',False)
     for svc in SERVICES:
+        if paused and svc=='etf':continue
         entry={'service':SERVICES[svc],'query_date':iso(end)}
         try:entry.update({'status':'success','row_count':len(client.get(svc,end.strftime('%Y%m%d')))})
         except APIError as exc:entry.update({'status':'failed','message':str(exc)})
         report['services'].append(entry)
     if not probe:
-        for label,fn in [('prices',refresh_prices),('etf_quotes',refresh_etfs)]:
+        jobs=[('prices',refresh_prices)]+([] if paused else [('etf_quotes',refresh_etfs)])
+        for label,fn in jobs:
             try:report['components'][label]=fn(root,client,end)
             except APIError as exc:report['components'][label]={'status':'failed','message':str(exc)}
-        prices=report['components']['prices'];etfs=report['components']['etf_quotes']
+        prices=report['components']['prices'];etfs=report['components'].get('etf_quotes',{})
         if prices['status']=='failed':atomic(data/'price-status.json',{'status':'failed','checked_at':now().isoformat(),'web_login':False,'message':prices['message']})
         message='OpenAPI 전용 · 웹 로그인 중지. 투자자별 세부 수급·외국인 지분율·지수 편입종목은 API 미제공으로 직전 관측일 유지.'
         for scope,file in [('index','index-status.json'),('legacy','status.json')]:
@@ -106,8 +109,12 @@ def run(root,client,end,probe=False):
             if 'Kiwoom' in flow_meta.get('source',''):
                 flow_message='가격은 KRX OpenAPI, 세부 수급은 등록된 PC의 키움 REST에서 별도 갱신합니다. 수급 '+str(flow_date)+' / 가격 '+str(prices.get('as_of'))+'. 실행기 대기·실패는 수집 상태 진단을 확인하세요.'
             atomic(data/file,{'status':'api_limited','openapi_mode':True,'as_of':flow_date,'price_as_of':prices.get('as_of'),'message':flow_message,'checked_at':now().isoformat(),'web_login':False})
-        atomic(data/'etf-status.json',{'status':'api_limited','openapi_mode':True,'as_of':etfs.get('as_of'),'universe_count':etfs.get('count'),
-            'checked_at':now().isoformat(),'message':'OpenAPI 전용 · ETF 시세/NAV/순자산/발행좌수만 갱신. PDF·CU 구성수량 미제공으로 종목별 패시브 압력은 N/A.'+(' API 오류: '+etfs['message'] if etfs['status']=='failed' else ''),'web_login':False})
+        if paused:
+            saved=read(data/'etf-status.json',{})
+            atomic(data/'etf-status.json',{**saved,'status':'paused','paused':True,'checked_at':now().isoformat(),'message':'사용자 요청으로 ETF 갱신 잠정 중지 · 보존된 자료 기준일 확인'})
+        else:
+            atomic(data/'etf-status.json',{'status':'api_limited','openapi_mode':True,'as_of':etfs.get('as_of'),'universe_count':etfs.get('count'),
+                'checked_at':now().isoformat(),'message':'OpenAPI 전용 · ETF 시세/NAV/순자산/발행좌수만 갱신. PDF·CU 구성수량 미제공으로 종목별 패시브 압력은 N/A.'+(' API 오류: '+etfs['message'] if etfs['status']=='failed' else ''),'web_login':False})
     report['request_count']=client.calls
     good=all(s['status']=='success' for s in report['services']) if probe else all(c['status']=='success' for c in report['components'].values())
     report['status']='success' if good else 'partial_or_failed'

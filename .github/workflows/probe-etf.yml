@@ -5,6 +5,7 @@ permissions:
   contents: write
 jobs:
   openapi:
+    if: ${{ false }} # ETF refresh paused by user on 2026-11-16
     uses: ./.github/workflows/check-krx-openapi.yml
     secrets: inherit
 

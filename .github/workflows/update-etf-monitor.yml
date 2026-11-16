@@ -1,12 +1,6 @@
 name: Update ETF market and issuer holdings
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['scripts/build-etf-monitor.py', 'scripts/collect-etf-holdings.py', '.github/workflows/update-etf-monitor.yml']
-  workflow_run:
-    workflows: ['Update index universe and flow']
-    types: [completed]
 permissions:
   contents: write
 concurrency:
@@ -14,6 +8,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   update:
+    if: ${{ false }} # ETF refresh paused by user on 2026-11-16
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
