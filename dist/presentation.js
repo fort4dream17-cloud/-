@@ -21,3 +21,9 @@ export function priceHistoryRows(m,history){
  return tuples.slice(first).map(([date,close,volume])=>({date,close,volume,benchmark:bench.get(date)??null,...observed.get(date)}));
 }
 
+
+// Period labels follow observed investor-flow dates, never stale imported summaries.
+export function observedFlowWindow(dataset,n=60){
+ const dates=[...new Set((dataset.rows||[]).map(r=>r.date).filter(d=>d<=dataset.meta.as_of))].sort().slice(-n);
+ return dates.length?{from:dates[0],to:dates.at(-1),sessions:dates.length,complete:dates.length===n}:null;
+}

@@ -169,6 +169,8 @@ def run(root=ROOT):
                 count+=1
                 if count%25==0:print('Validated collection progress:',count,'stocks; cache hits:',client.cache_hits,flush=True)
             meta={**old['meta'],'as_of':target,'fetched_at':now().isoformat(),'source':'KRX OpenAPI prices + Kiwoom REST investor flows (KRX market)','status':'unknown','price_basis':'raw','dividend_adjusted':False,'trading_dates':sorted(set(old['meta']['trading_dates'])|{d for d in benchmark if old['meta']['trading_dates'][0]<=d<=target}),'notes':['수급: 키움 REST ka10059, KRX 시장 기준. 백만원을 억원으로 변환; 화면은 십억원.','최근 수급은 확정 여부 미확인. 연기금등은 국민연금 단독이 아님.','외국인 보유율 신규 자료 미확보. ETF 체결액으로 해석하지 않음.']}
+            observed_dates=sorted({r['date'] for r in merged if r['date']<=target})
+            meta['window_dates']={str(n):{'from':observed_dates[-n:][0],'to':observed_dates[-1],'sessions':min(n,len(observed_dates))} for n in [5,10,20,60]} if observed_dates else {}
             meta.pop('reported_windows',None)
             # close is the stored original close; never label new raw quotes as adjusted.
             for row in merged:row['adjusted_close']=None
