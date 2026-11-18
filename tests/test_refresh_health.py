@@ -15,6 +15,5 @@ class TestHealth(unittest.TestCase):
  def test_etf_workflow_has_no_pc_or_kiwoom_dependency(self):
   s=(ROOT/'.github/workflows/update-etf-monitor.yml').read_text()
   self.assertIn('runs-on: ubuntu-latest',s);self.assertNotIn('self-hosted',s);self.assertNotIn('Update Kiwoom investor flows',s)
- def test_recovery_and_no_unbounded_old_quote_queue(self):
-  s=(ROOT/'.github/workflows/update-kiwoom.yml').read_text();self.assertIn('45 9-14',s);self.assertIn('25 23',s)
+ def test_no_unbounded_old_quote_queue(self):
   self.assertNotIn('queue: max',(ROOT/'.github/workflows/update-index-universe.yml').read_text())

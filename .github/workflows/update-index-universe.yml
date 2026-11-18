@@ -4,7 +4,7 @@ on:
   workflow_call:
   push:
     branches: [main]
-    paths: ['scripts/kiwoom_flow.py', 'tests/test_kiwoom.py', 'scripts/krx_openapi.py', 'scripts/collect-openapi.py', 'scripts/collect.py', 'config/refresh-control.json', 'tests/test_openapi.py', '.github/workflows/update-index-universe.yml']
+    paths: ['scripts/kiwoom_flow.py', 'tests/test_kiwoom.py', 'tests/test_refresh_health.py', 'scripts/krx_openapi.py', 'scripts/collect-openapi.py', 'scripts/collect.py', 'config/refresh-control.json', 'tests/test_openapi.py', '.github/workflows/update-index-universe.yml']
   schedule:
     # 20:35 Asia/Seoul, Monday-Friday; GitHub scheduling may start later.
     - cron: '35 11 * * 1-5'
