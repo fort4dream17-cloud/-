@@ -1,0 +1,30 @@
+name: Check Windows runner autostart
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/check-runner-autostart.yml"]
+permissions:
+  contents: read
+jobs:
+  readiness:
+    runs-on: [self-hosted, Windows, kiwoom]
+    timeout-minutes: 3
+    steps:
+      - name: Read scheduled task readiness without publishing personal settings
+        shell: python
+        run: |
+          import subprocess,json,xml.etree.ElementTree as ET
+          r=subprocess.run(['schtasks.exe','/Query','/TN','JH Coverage Flow Runner','/XML'],capture_output=True,timeout=15)
+          if r.returncode:
+              print(json.dumps({'status':'not_detected','exit_code':r.returncode}));raise SystemExit(0)
+          raw=r.stdout
+          if raw.startswith((b'\xff\xfe',b'\xfe\xff')):xml=raw.decode('utf-16')
+          elif b'\x00' in raw[:100]:xml=raw.decode('utf-16-le')
+          else:
+              try:xml=raw.decode('utf-8-sig')
+              except UnicodeDecodeError:xml=raw.decode('cp949')
+          tree=ET.fromstring(xml);ns={'t':'http://schemas.microsoft.com/windows/2004/02/mit/task'}
+          def value(path):
+              e=tree.find(path,ns);return e.text if e is not None else None
+          print(json.dumps({'enabled':value('.//t:Settings/t:Enabled'),'run_level':value('.//t:RunLevel'),'at_sign_in':tree.find('.//t:LogonTrigger',ns) is not None,'retry_interval':value('.//t:Repetition/t:Interval'),'logon_type':value('.//t:LogonType')}))
