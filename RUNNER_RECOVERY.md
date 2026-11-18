@@ -1,5 +1,30 @@
 # 수급 갱신 실행기 복구
 
+## 권장: 한 번 설치하는 로그인 자동 시작·중단 복구
+
+등록된 PC의 **같은 Windows 사용자 계정**에서 CMD를 **관리자 권한으로 실행**하고 다음 두 줄을 차례로 실행합니다.
+
+```cmd
+curl.exe -fL "https://raw.githubusercontent.com/fort4dream17-cloud/-/main/scripts/install-runner-watchdog.py" -o "%TEMP%\install-runner-watchdog.py"
+python "%TEMP%\install-runner-watchdog.py"
+```
+
+등록 경로 `C:\Windows\System32\actions-runner`를 자동 확인합니다. 다른 경로는 Python 명령 뒤에 큰따옴표로 경로를 추가합니다. 기존 GitHub 등록·키움 키·실행 중 작업은 유지합니다. `INSTALLED`가 출력돼야 PC 설치가 완료된 것입니다. GitHub에 파일이 올라간 것만으로 PC에 설치되지는 않습니다.
+
+- 작업 스케줄러 `JH Coverage Flow Runner`: 로그인 시 자동 실행, 5분 간격 재확인
+- 동일 사용자 관리자 권한으로 `System32` 로그 쓰기 문제 해결
+- 실행기나 수집 작업이 이미 실행 중이면 중복 시작하지 않음
+- 비밀번호 저장·실행 정책 변경·절전 설정 변경 없음
+- PC가 켜져 있고 Windows에 로그인한 상태에서만 동작. 잠금 화면은 가능하나 로그아웃·전원 꺼짐·절전 중 수집은 불가
+- 설치 후 실행기 창을 매일 열 필요 없음. 현재 수동 실행 창은 진행 중 작업이 끝날 때까지 유지
+- 상태는 다음 수급 작업에서 `dist/data/runner-autostart.json`으로 확인. 사용자명·SID·작업 XML은 공개하지 않음
+- 로그: `%LOCALAPPDATA%\JHAnalytics\runner-watchdog\watchdog.log`
+- 해제: 관리자 CMD에서 `schtasks /Delete /TN "JH Coverage Flow Runner" /F`. 진행 중 실행기는 중지하지 않음
+
+로그인 없이 부팅 직후부터 실행해야 한다면 공식 GitHub Windows 서비스로 새로 등록하는 별도 설정이 필요합니다. 이 도구를 Windows 서비스 설치라고 표시하지 않습니다.
+
+## 이전 방식: 로그인 시 창만 열기
+
 키움 API의 등록 IP 조건 때문에 세부 수급 수집은 기존 Windows PC에서 실행합니다. 가격·ETF·수집 상태 진단은 GitHub 클라우드에서 독립 실행합니다.
 
 ## PC에서 한 번 설정

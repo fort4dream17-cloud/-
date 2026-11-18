@@ -64,6 +64,9 @@ jobs:
           KRX_OPEN_API_KEY: ${{ secrets.KRX_OPEN_API_KEY }}
           KRX_AUTH_KEY: ${{ secrets.KRX_AUTH_KEY }}
         run: python scripts/kiwoom_flow.py
+      - name: Check current-user runner autostart without publishing personal settings
+        if: always()
+        run: python scripts/check-runner-autostart.py
       - name: Publish validated flows or failure status
         if: always() && steps.api.outcome != 'skipped'
         shell: python
@@ -73,7 +76,7 @@ jobs:
               return subprocess.run(['git',*args],check=True)
           git('config','user.name','flow-data-bot')
           git('config','user.email','flow-data-bot@users.noreply.github.com')
-          git('add','dist/data/index-market.json','dist/data/market.json','dist/data/index-status.json','dist/data/status.json','dist/data/kiwoom-status.json')
+          git('add','dist/data/index-market.json','dist/data/market.json','dist/data/index-status.json','dist/data/status.json','dist/data/kiwoom-status.json','dist/data/runner-autostart.json')
           changed=subprocess.run(['git','diff','--cached','--quiet']).returncode
           if changed==1:
               git('commit','-m','Refresh validated Kiwoom investor flows')
