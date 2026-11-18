@@ -1,12 +1,7 @@
 name: Update Kiwoom investor flows
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '45 9-14 * * 1-5'
-    - cron: '25 23 * * 0-4'
-  push:
-    branches: [main]
-    paths: [".github/workflows/update-kiwoom.yml", "scripts/kiwoom_flow.py", "scripts/check-runner-autostart.py"]
+  # One daily chain: OpenAPI refresh -> investor flows. Manual runs remain available.
   workflow_run:
     workflows: ['Update index universe and flow']
     types: [completed]
