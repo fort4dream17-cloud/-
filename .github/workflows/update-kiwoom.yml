@@ -6,7 +6,7 @@ on:
     - cron: '25 23 * * 0-4'
   push:
     branches: [main]
-    paths: [".github/workflows/update-kiwoom.yml", "scripts/kiwoom_flow.py"]
+    paths: [".github/workflows/update-kiwoom.yml", "scripts/kiwoom_flow.py", "scripts/check-runner-autostart.py"]
   workflow_run:
     workflows: ['Update index universe and flow']
     types: [completed]

@@ -16,3 +16,9 @@ class TestWatchdog(unittest.TestCase):
   spec=importlib.util.spec_from_file_location('readiness',ROOT/'scripts/check-runner-autostart.py');d=importlib.util.module_from_spec(spec);spec.loader.exec_module(d)
   result=d.inspect(m.task_xml('S-1-private-user',r'C:\Python\python.exe',r'C:\Users\Private\watchdog.py',m.DEFAULT_RUNNER))
   self.assertEqual(result['status'],'configured');self.assertFalse(result['before_sign_in']);self.assertNotIn('S-1-',str(result));self.assertNotIn('Private',str(result))
+
+ def test_windows_xml_encodings(self):
+  spec=importlib.util.spec_from_file_location('readiness',ROOT/'scripts/check-runner-autostart.py');d=importlib.util.module_from_spec(spec);spec.loader.exec_module(d)
+  xml=m.task_xml('S-1-test','python.exe','watchdog.py',m.DEFAULT_RUNNER).decode('utf-16')
+  for raw in [xml.encode('utf-16'),xml.encode('utf-16-le'),xml.encode('utf-8'),xml.replace('S-1-test','사용자').encode('cp949')]:
+   self.assertEqual(d.inspect(raw)['status'],'configured')
