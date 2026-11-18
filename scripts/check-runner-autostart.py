@@ -13,7 +13,7 @@ def inspect(xml):
     ns={'t':'http://schemas.microsoft.com/windows/2004/02/mit/task'};tree=ET.fromstring(decode_xml(xml))
     def value(path):
         e=tree.find(path,ns);return e.text if e is not None else None
-    ready=value('.//t:Settings/t:Enabled')=='true' and value('.//t:Repetition/t:Interval')=='PT5M' and value('.//t:RunLevel')=='HighestAvailable' and tree.find('.//t:LogonTrigger',ns) is not None
+    ready=value('.//t:Settings/t:Enabled') in (None,'true','1') and value('.//t:Repetition/t:Interval')=='PT5M' and value('.//t:RunLevel')=='HighestAvailable' and tree.find('.//t:LogonTrigger',ns) is not None
     return {'status':'configured' if ready else 'needs_review','at_sign_in':tree.find('.//t:LogonTrigger',ns) is not None,'retry_interval':value('.//t:Repetition/t:Interval'),'before_sign_in':False}
 def main():
     result={'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}

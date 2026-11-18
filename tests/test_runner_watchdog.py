@@ -22,3 +22,10 @@ class TestWatchdog(unittest.TestCase):
   xml=m.task_xml('S-1-test','python.exe','watchdog.py',m.DEFAULT_RUNNER).decode('utf-16')
   for raw in [xml.encode('utf-16'),xml.encode('utf-16-le'),xml.encode('utf-8'),xml.replace('S-1-test','사용자').encode('cp949')]:
    self.assertEqual(d.inspect(raw)['status'],'configured')
+
+ def test_omitted_enabled_uses_windows_default_but_explicit_false_is_rejected(self):
+  spec=importlib.util.spec_from_file_location('readiness',ROOT/'scripts/check-runner-autostart.py');d=importlib.util.module_from_spec(spec);spec.loader.exec_module(d)
+  tree=ET.fromstring(m.task_xml('S-1-test','python.exe','watchdog.py',m.DEFAULT_RUNNER));ns={'t':'http://schemas.microsoft.com/windows/2004/02/mit/task'}
+  settings=tree.find('t:Settings',ns);enabled=settings.find('t:Enabled',ns)
+  enabled.text='false';self.assertEqual(d.inspect(ET.tostring(tree))['status'],'needs_review')
+  settings.remove(enabled);self.assertEqual(d.inspect(ET.tostring(tree))['status'],'configured')
