@@ -1,1 +1,1 @@
-{"status": "api_limited", "openapi_mode": true, "as_of": "2026-11-16", "price_as_of": "2026-11-17", "message": "가격은 KRX OpenAPI, 세부 수급은 등록된 PC의 키움 REST에서 별도 갱신합니다. 수급 2026-11-16 / 가격 2026-11-17. 실행기 대기·실패는 수집 상태 진단을 확인하세요.", "checked_at": "2026-11-19T07:32:32.224869+09:00", "web_login": false}
+{"status": "success", "as_of": "2026-11-17", "last_success_at": "2026-11-19T07:47:34.710329+09:00", "message": "키움 REST 세부 수급 + KRX OpenAPI 가격 갱신", "web_login": false, "openapi_mode": false}
