@@ -24,7 +24,7 @@ try:
   log('Configured runner files missing; no registration attempted.');raise SystemExit(1)
  # Read process executable paths only, never credential-bearing command lines.
  ps="$ErrorActionPreference='Stop'; @(Get-CimInstance Win32_Process -Filter \"Name='Runner.Listener.exe' OR Name='Runner.Worker.exe'\" | Select-Object ExecutablePath) | ConvertTo-Json -Compress"
- r=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',ps],capture_output=True,check=True)
+ r=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',ps],capture_output=True,check=True,creationflags=subprocess.CREATE_NO_WINDOW)
  processes=json.loads(r.stdout.decode('utf-8-sig') or '[]')
  if isinstance(processes,dict):processes=[processes]
  for process in processes:
@@ -34,7 +34,7 @@ try:
   if pathlib.Path(exe).resolve().parent==root/'bin':
    log('Existing listener/worker is running; no duplicate started.');raise SystemExit(0)
  log('Starting registered runner. No provider authentication is performed by watchdog.')
- result=subprocess.run(['cmd.exe','/d','/c','call run.cmd'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+ result=subprocess.run(['cmd.exe','/d','/c','call run.cmd'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=subprocess.CREATE_NO_WINDOW)
  log('Runner exited with code '+str(result.returncode)+'; scheduled task will retry.')
  raise SystemExit(result.returncode)
 except Exception as e:
@@ -72,7 +72,9 @@ def main():
     if not sid.startswith('S-1-'):raise SystemExit('Unable to identify current Windows user.')
     home=pathlib.Path(os.environ['LOCALAPPDATA'])/'JHAnalytics'/'runner-watchdog';home.mkdir(parents=True,exist_ok=True)
     script=home/'watchdog.py';script.write_text(WATCHDOG,encoding='utf-8')
-    xml=task_xml(sid,sys.executable,str(script),str(runner))
+    pythonw=pathlib.Path(sys.executable).with_name('pythonw.exe')
+    if not pythonw.is_file():raise SystemExit('pythonw.exe missing next to Python; no scheduled task changes made.')
+    xml=task_xml(sid,str(pythonw),str(script),str(runner))
     with tempfile.TemporaryDirectory() as tmp:
         file=pathlib.Path(tmp)/'task.xml';file.write_bytes(xml)
         subprocess.run(['schtasks.exe','/Create','/TN',TASK,'/XML',str(file),'/F'],check=True)
