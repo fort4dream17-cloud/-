@@ -1,1 +1,1 @@
-{"status": "failed", "checked_at": "2026-11-20T04:37:06.377601+09:00", "message": "공시 공급자 연결 오류: URLError"}
+{"status": "success", "checked_at": "2026-11-21T04:20:40.391048+09:00", "matched_reports": 174, "failed_codes": [], "no_report_count": 178, "removed_unverified": 0, "source": "OpenDART majorstock"}
