@@ -1,6 +1,7 @@
 """Read-only Actions diagnostics; no provider credentials or login attempts."""
 import json,os,pathlib,urllib.request
-from datetime import datetime,timezone
+from datetime import datetime,timezone,timedelta
+from zoneinfo import ZoneInfo
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 def read(p):
     try:return json.loads(p.read_text(encoding='utf-8'))
@@ -15,10 +16,15 @@ def diagnose(flow,price,runs,checked):
     elif latest.get('status')=='pending':state='waiting_previous';message='이전 수급 작업 종료 대기 · PC 실행기 대기 작업이 있는지 확인 필요'
     elif latest.get('status')=='in_progress':state='collecting';message='키움 수급 수집 실행 중 · 검증 완료 전 직전 자료 유지'
     elif latest.get('conclusion') in ('failure','timed_out','cancelled') and state!='current':state='failed';message='최근 수급 작업 실패/중단 · 직전 자료 유지'
+    local=checked.astimezone(ZoneInfo('Asia/Seoul'))
+    expected=local.date()-timedelta(days=1 if local.hour<18 else 0)
+    while expected.weekday()>4:expected-=timedelta(days=1)
+    if state=='current' and price<expected.isoformat():
+        state='source_delayed';message='가격·수급 기준일은 일치하지만 최근 평일('+expected.isoformat()+') 자료 미확보 · 휴장 또는 공급자 반영 지연 확인 필요'
     age=None
     try:age=max(0,round((checked-datetime.fromisoformat(latest['created_at'].replace('Z','+00:00'))).total_seconds()/60))
     except (KeyError,ValueError):pass
-    return {'checked_at':checked.isoformat(),'status':state,'message':message,'flow_as_of':flow,'price_as_of':price,'run_status':latest.get('status'),'conclusion':latest.get('conclusion'),'queued_or_run_age_minutes':age,'run_url':latest.get('html_url'),'pc_required':True,'web_login':False}
+    return {'checked_at':checked.isoformat(),'status':state,'message':message,'expected_weekday':expected.isoformat(),'flow_as_of':flow,'price_as_of':price,'run_status':latest.get('status'),'conclusion':latest.get('conclusion'),'queued_or_run_age_minutes':age,'run_url':latest.get('html_url'),'pc_required':True,'web_login':False}
 def main(root=ROOT):
     repo=os.environ.get('GITHUB_REPOSITORY','fort4dream17-cloud/-')
     if repo!='fort4dream17-cloud/-':raise ValueError('unexpected repository')
