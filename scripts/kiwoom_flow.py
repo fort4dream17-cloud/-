@@ -38,7 +38,8 @@ class Client:
         for attempt in range(3):
             try:return self._post(path,body,headers)
             except APIError as e:
-                if path!='/api/dostk/stkinfo' or '1631' not in str(e) or attempt==2:raise
+                transient='1631' in str(e) or any(('"http_status": '+str(code)) in str(e) for code in (500,502,503,504))
+                if path!='/api/dostk/stkinfo' or not transient or attempt==2:raise
                 time.sleep(2*(attempt+1))
     def _post(self,path,body,headers=None):
         if path not in ('/oauth2/token','/api/dostk/stkinfo'):raise APIError('endpoint not allowed')
