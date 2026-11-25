@@ -2,6 +2,7 @@
 import json,os,pathlib,time,subprocess,sys,tempfile,re,math
 from datetime import datetime
 from collect import atomic,now,collection_end
+from flow_storage import read_flow,write_flow
 from krx_openapi import Client as KRXClient, code as krx_code
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 FIELDS=dict(personal='ind_invsr',foreign='frgnr_invsr',institution='orgn',financial='fnnc_invt',insurance='insrnc',trust='invtrt',other_institution='etc_fnnc',bank='bank',pension='penfnd_etc',private='samo_fund',government='natn',corporation='etc_corp',other_foreign='natfor')
@@ -110,7 +111,7 @@ class Client:
         if out and min(out)>start and h.get('cont-yn')=='Y':raise APIError('history pagination incomplete')
         return out
 
-def read(p):return json.loads(p.read_text(encoding='utf-8'))
+def read(p):return read_flow(p)
 def validate(root,result,filename):
     with tempfile.TemporaryDirectory() as tmp:
         candidate=pathlib.Path(tmp)/'dataset.json';candidate.write_text(json.dumps(result),encoding='utf-8')
@@ -188,7 +189,7 @@ def run(root=ROOT):
             prepared.append((filename,result))
             state['validated_scopes']=[name for name,_ in prepared]
         for filename,result in prepared:
-            atomic(data/filename,result)
+            write_flow(data/filename,result)
             atomic(data/('index-status.json' if filename.startswith('index-') else 'status.json'),{'status':'success','as_of':target,'last_success_at':now().isoformat(),'message':'키움 REST 세부 수급 + KRX OpenAPI 가격 갱신','web_login':False,'openapi_mode':False})
         state.update(status='success',as_of=target,processed_count=count,overlap_checks=overlap)
     except Exception as e:
