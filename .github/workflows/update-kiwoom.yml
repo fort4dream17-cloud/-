@@ -50,8 +50,20 @@ jobs:
               with open(os.environ['GITHUB_PATH'],'a',encoding='utf-8') as f:f.write(str(node.parent)+'\n')
       - name: Install job-local timezone data
         run: python -m pip install --disable-pip-version-check --target "%RUNNER_TEMP%\\kiwoom-python-deps" tzdata
+      - name: Skip already published flow date
+        id: freshness
+        shell: python
+        run: |
+          import json,os,pathlib
+          data=pathlib.Path('dist/data')
+          price=json.loads((data/'index-price-history.json').read_text(encoding='utf-8'))['meta']['as_of']
+          flow=json.loads((data/'index-market.json').read_text(encoding='utf-8'))['meta'].get('as_of','')
+          needed=os.environ.get('GITHUB_EVENT_NAME')=='workflow_dispatch' or flow<price
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('needed='+str(needed).lower()+'\n')
+          print('Price:',price,'flow:',flow,'collection needed:',needed)
       - name: Collect from registered-IP runner only
         id: api
+        if: steps.freshness.outputs.needed == 'true'
         continue-on-error: true
         env:
           KIWOOM_FLOW_CACHE: ${{ runner.workspace }}/../kiwoom-flow-cache

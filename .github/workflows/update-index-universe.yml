@@ -8,6 +8,9 @@ on:
   schedule:
     # 20:35 Asia/Seoul, Monday-Friday; GitHub scheduling may start later.
     - cron: '35 11 * * 1-5'
+    # Morning recovery checks (06:15, 08:15, 09:15 KST), skip collection when current.
+    - cron: '15 21,23 * * 0-4'
+    - cron: '15 0 * * 1-5'
 permissions:
   contents: write
 concurrency:
@@ -24,12 +27,27 @@ jobs:
         with: {python-version: '3.11'}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - name: Check whether a newer daily price is required
+        id: freshness
+        shell: python
+        run: |
+          import datetime,json,os,pathlib
+          from zoneinfo import ZoneInfo
+          now=datetime.datetime.now(ZoneInfo('Asia/Seoul'))
+          target=now.date()-datetime.timedelta(days=1 if now.hour<18 else 0)
+          while target.weekday()>4:target-=datetime.timedelta(days=1)
+          try:saved=json.loads(pathlib.Path('dist/data/price-status.json').read_text()) .get('as_of','')
+          except (ValueError,OSError):saved=''
+          needed=os.environ.get('GITHUB_EVENT_NAME')!='schedule' or saved<target.isoformat()
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('needed='+str(needed).lower()+'\n')
+          print('Target weekday:',target,'stored price:',saved,'refresh needed:',needed)
       - name: Validate calculations and no-login policy
         run: |
           npm test
           python -m unittest discover -s tests -p 'test_*.py'
       - name: Refresh through AUTH_KEY only
         id: api
+        if: steps.freshness.outputs.needed == 'true'
         continue-on-error: true
         env:
           KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
