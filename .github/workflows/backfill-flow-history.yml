@@ -1,0 +1,82 @@
+name: Backfill YTD investor flow history
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/backfill-flow-history.yml']
+permissions:
+  contents: write
+concurrency:
+  group: kiwoom-flow-update
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: [self-hosted, Windows, kiwoom]
+    defaults:
+      run:
+        shell: cmd
+    env:
+      PYTHONUTF8: "1"
+      FLOW_BACKFILL_YTD: "1"
+    timeout-minutes: 60
+    steps:
+      - name: Prepare portable Git without changing PC settings
+        shell: python
+        run: |
+          import os,pathlib,shutil,urllib.request,zipfile,hashlib
+          if not shutil.which('git'):
+              root=pathlib.Path(os.environ['RUNNER_TEMP'])/'kiwoom-mingit'
+              root.mkdir(exist_ok=True)
+              archive=root/'mingit.zip'
+              urllib.request.urlretrieve('https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.4/MinGit-2.56.0.4-64-bit.zip',archive)
+              if hashlib.sha256(archive.read_bytes()).hexdigest()!='e3bf78351fe777fba47ddee5950082f8a98bb0f02604fdc7ba3ee2cb68ffa877':
+                  raise SystemExit('Git download checksum mismatch')
+              with zipfile.ZipFile(archive) as z:z.extractall(root)
+              with open(os.environ['GITHUB_PATH'],'a',encoding='utf-8') as f:f.write(str(root/'cmd')+'\n')
+      - uses: actions/checkout@v4
+        with: {ref: main, fetch-depth: 0}
+      - name: Use runner-bundled Node for data validation
+        shell: python
+        run: |
+          import os,pathlib,shutil
+          if not shutil.which('node'):
+              root=pathlib.Path(os.environ['RUNNER_TEMP']).parents[1]
+              candidates=[root/'externals'/version/'bin'/'node.exe' for version in ['node24','node20']]
+              node=next((p for p in candidates if p.is_file()),None)
+              if node is None:raise SystemExit('Runner-bundled Node missing')
+              with open(os.environ['GITHUB_PATH'],'a',encoding='utf-8') as f:f.write(str(node.parent)+'\n')
+      - name: Install job-local timezone data
+        run: python -m pip install --disable-pip-version-check --target "%RUNNER_TEMP%\\kiwoom-python-deps" tzdata
+      - name: Skip already published flow date
+        id: freshness
+        shell: python
+        run: |
+          import json,os,pathlib
+          data=pathlib.Path('dist/data')
+          price=json.loads((data/'index-price-history.json').read_text(encoding='utf-8'))['meta']['as_of']
+          flow=json.loads((data/'index-market.json').read_text(encoding='utf-8'))['meta'].get('as_of','')
+          needed=True
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('needed='+str(needed).lower()+'\n')
+          print('Price:',price,'flow:',flow,'collection needed:',needed)
+      - name: Collect from registered-IP runner only
+        id: api
+        if: steps.freshness.outputs.needed == 'true'
+        continue-on-error: true
+        env:
+          KIWOOM_FLOW_CACHE: ${{ runner.workspace }}/../kiwoom-flow-cache
+          PYTHONPATH: ${{ runner.temp }}/kiwoom-python-deps
+          KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
+          KIWOOM_SECRET_KEY: ${{ secrets.KIWOOM_SECRET_KEY }}
+          KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
+          KRX_OPEN_API_KEY: ${{ secrets.KRX_OPEN_API_KEY }}
+          KRX_AUTH_KEY: ${{ secrets.KRX_AUTH_KEY }}
+        run: python scripts/kiwoom_flow.py
+      - name: Check current-user runner autostart without publishing personal settings
+        if: always()
+        run: python scripts/check-runner-autostart.py
+      - name: Publish validated flows from isolated worktree
+        if: always() && steps.api.outcome != 'skipped'
+        run: python scripts/publish-kiwoom.py
+      - if: steps.api.outcome == 'failure'
+        run: exit /b 1
+

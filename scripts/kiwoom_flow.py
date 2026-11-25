@@ -129,6 +129,10 @@ def run(root=ROOT):
         client.authenticate();state['authentication']='success'
         history=read(data/'index-price-history.json');target=history['meta']['as_of'];end=target.replace('-','')
         benchmark=dict(history['benchmarks']);krx=KRXClient();caps={}
+        backfill=os.environ.get('FLOW_BACKFILL_YTD')=='1'
+        boundary=target[:4]+'-01-01'
+        baseline=max((d for d in benchmark if d<boundary),default=boundary)
+        if backfill and baseline==boundary:raise APIError('YTD baseline price history missing')
         prepared=[];count=0;overlap=0
         for filename in ['index-market.json','market.json']:
             old=read(data/filename);bycode={}
@@ -140,6 +144,7 @@ def run(root=ROOT):
             merged=[]
             for code,rows in sorted(bycode.items()):
                 rows.sort(key=lambda r:r['date']);last=rows[-1]['date'];start=rows[max(0,len(rows)-25)]['date']
+                if backfill:start=min(start,baseline)
                 state['current_code']=code
                 flows=client.flows(code,end,start)
                 if target not in flows:raise APIError('latest flow missing for '+code)
@@ -155,8 +160,9 @@ def run(root=ROOT):
                         r={**r,**flows[r['date']],'flow_source':'Kiwoom REST ka10059'}
                     merged.append(r)
                 for d in sorted(benchmark):
-                    if not last<d<=target:continue
+                    if not (last<d<=target or backfill and baseline<=d<rows[0]['date']):continue
                     f=flows.get(d);q=prices.get(d)
+                    if backfill and d<rows[0]['date'] and (not q or q[0] is None):continue
                     if f is None or not q or q[0] is None:raise APIError('missing date/price '+code+' '+d)
                     if d not in caps:
                         allrows=krx.get('stocks',d.replace('-',''))+krx.get('kosdaq',d.replace('-',''));caps[d]={krx_code(x['ISU_CD']):number(x.get('MKTCAP')) for x in allrows}
@@ -169,7 +175,9 @@ def run(root=ROOT):
                     merged.append({'date':d,'code':code,'name':rows[0]['name'],'sector':rows[0]['sector'],'close':q[0],'volume':q[1],'benchmark':benchmark[d],'turnover':number(qr.get('ACC_TRDVAL'))/1e8,'marketcap':cap/1e8,'foreign_ownership':None,'flow_source':'Kiwoom REST ka10059',**f})
                 count+=1
                 if count%25==0:print('Validated collection progress:',count,'stocks; cache hits:',client.cache_hits,flush=True)
-            meta={**old['meta'],'as_of':target,'fetched_at':now().isoformat(),'source':'KRX OpenAPI prices + Kiwoom REST investor flows (KRX market)','status':'unknown','price_basis':'raw','dividend_adjusted':False,'trading_dates':sorted(set(old['meta']['trading_dates'])|{d for d in benchmark if old['meta']['trading_dates'][0]<=d<=target}),'notes':['수급: 키움 REST ka10059, KRX 시장 기준. 백만원을 억원으로 변환; 화면은 십억원.','최근 수급은 확정 여부 미확인. 연기금등은 국민연금 단독이 아님.','외국인 보유율 신규 자료 미확보. ETF 체결액으로 해석하지 않음.']}
+            meta={**old['meta'],'as_of':target,'fetched_at':now().isoformat(),'source':'KRX OpenAPI prices + Kiwoom REST investor flows (KRX market)','status':'unknown','price_basis':'raw','dividend_adjusted':False,'trading_dates':sorted(set(old['meta']['trading_dates'])|{d for d in benchmark if (baseline if backfill else old['meta']['trading_dates'][0])<=d<=target}),'notes':['수급: 키움 REST ka10059, KRX 시장 기준. 백만원을 억원으로 변환; 화면은 십억원.','최근 수급은 확정 여부 미확인. 연기금등은 국민연금 단독이 아님.','외국인 보유율 신규 자료 미확보. ETF 체결액으로 해석하지 않음.']}
+            if backfill:meta['ytd_backfill_baseline']=baseline
+            merged.sort(key=lambda r:(r['code'],r['date']))
             observed_dates=sorted({r['date'] for r in merged if r['date']<=target})
             meta['window_dates']={str(n):{'from':observed_dates[-n:][0],'to':observed_dates[-1],'sessions':min(n,len(observed_dates))} for n in [5,10,20,60]} if observed_dates else {}
             meta.pop('reported_windows',None)
